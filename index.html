@@ -489,7 +489,7 @@
         box-shadow: 0 8px 22px rgba(228,128,67,0.45);
         opacity: 0;
         transform: translateY(20px);
-        transition: opacity 0.6s ease 1.6s, transform 0.6s ease 1.6s;
+        transition: opacity 0.5s ease 0.5s, transform 0.5s ease 0.5s;
       }
       #screen-bee.is-active .bee-cta {
         opacity: 1;
@@ -737,9 +737,9 @@
       .trace-pin:active { transform: scale(0.9); }
       .trace-pin.is-mine { box-shadow: 0 0 0 2px var(--magenta), 0 4px 10px rgba(0,0,0,0.3); }
       .trace-pin.locked {
-        background: rgba(255,255,255,0.55);
-        color: rgba(40,28,14,0.5);
-        font-size: 0.62rem;
+        background: rgba(255,255,255,0.45);
+        opacity: 0.55;
+        filter: grayscale(0.4);
       }
 
       /* Map zoom controls */
@@ -1978,13 +1978,13 @@
         // the screen instead of clustering tight around the lock point.
         const configs = [
           // Speeds halved vs original — lazy, dreamy drift
-          { scale:0.0225, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.10, ampY:0.70, ampZ:0.36, speedX:0.22, speedY:0.28, speedZ:0.14, phaseX:0.0, phaseY:1.2, phaseZ:0.5 },
-          { scale:0.0175, gold:false, centerX:0, centerY:0, centerZ:0, ampX:0.95, ampY:0.65, ampZ:0.40, speedX:0.30, speedY:0.35, speedZ:0.18, phaseX:1.4, phaseY:0.3, phaseZ:2.1 },
-          { scale:0.0150, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.30, ampY:0.80, ampZ:0.44, speedX:0.38, speedY:0.22, speedZ:0.24, phaseX:2.5, phaseY:1.8, phaseZ:0.1 },
-          { scale:0.0200, gold:false, centerX:0, centerY:0, centerZ:0, ampX:0.80, ampY:0.60, ampZ:0.28, speedX:0.18, speedY:0.32, speedZ:0.10, phaseX:3.2, phaseY:2.4, phaseZ:1.6 },
-          { scale:0.0160, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.15, ampY:0.78, ampZ:0.40, speedX:0.26, speedY:0.22, speedZ:0.20, phaseX:0.7, phaseY:3.0, phaseZ:2.7 },
-          // GOLD — slightly tighter orbit so it remains catchable
-          { scale:0.0300, gold:true,  centerX:0, centerY:0, centerZ:0, ampX:0.70, ampY:0.50, ampZ:0.28, speedX:0.20, speedY:0.26, speedZ:0.16, phaseX:1.0, phaseY:0.0, phaseZ:0.0 },
+          { scale:0.0225, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.10, ampY:0.70, ampZ:0.36, speedX:0.34, speedY:0.42, speedZ:0.22, phaseX:0.0, phaseY:1.2, phaseZ:0.5 },
+          { scale:0.0175, gold:false, centerX:0, centerY:0, centerZ:0, ampX:0.95, ampY:0.65, ampZ:0.40, speedX:0.46, speedY:0.52, speedZ:0.28, phaseX:1.4, phaseY:0.3, phaseZ:2.1 },
+          { scale:0.0150, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.30, ampY:0.80, ampZ:0.44, speedX:0.56, speedY:0.34, speedZ:0.36, phaseX:2.5, phaseY:1.8, phaseZ:0.1 },
+          { scale:0.0200, gold:false, centerX:0, centerY:0, centerZ:0, ampX:0.80, ampY:0.60, ampZ:0.28, speedX:0.28, speedY:0.48, speedZ:0.18, phaseX:3.2, phaseY:2.4, phaseZ:1.6 },
+          { scale:0.0160, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.15, ampY:0.78, ampZ:0.40, speedX:0.40, speedY:0.34, speedZ:0.30, phaseX:0.7, phaseY:3.0, phaseZ:2.7 },
+          // GOLD — tight central orbit, phases at 0 so it starts right in front
+          { scale:0.0300, gold:true,  centerX:0, centerY:0, centerZ:0, ampX:0.45, ampY:0.30, ampZ:0.18, speedX:0.32, speedY:0.40, speedZ:0.24, phaseX:0.0, phaseY:0.0, phaseZ:0.0 },
         ];
 
         configs.forEach((c) => {
@@ -2340,7 +2340,7 @@
           const isVisible = visibleSet.has(t.id) || (t.mine && hasSubmittedActive);
           const locked = !isVisible;
           pin.className = 'trace-pin' + (t.mine ? ' is-mine' : '') + (locked ? ' locked' : '');
-          pin.textContent = locked ? '🔒' : (FLAVOURS[t.flavour]?.emoji || '✦');
+          pin.textContent = FLAVOURS[t.flavour]?.emoji || '✦';
           pin.style.left = t.x + '%';
           pin.style.top  = t.y + '%';
           pin.dataset.locked = locked ? '1' : '0';
@@ -2673,7 +2673,7 @@
          ============================================================ */
       let mapZoom = 1;
       const MAP_ZOOM_MIN = 1;
-      const MAP_ZOOM_MAX = 4;
+      const MAP_ZOOM_MAX = 2.5;
 
       // Zoom around the current viewport centre (or an explicit pixel anchor).
       // anchorX/Y are pixel coordinates in the wrap's client space (viewport).
@@ -2713,12 +2713,12 @@
 
       document.getElementById('zoom-in').addEventListener('click', () => {
         haptic([15]);
-        mapZoom = Math.min(MAP_ZOOM_MAX, mapZoom + 0.5);
+        mapZoom = Math.min(MAP_ZOOM_MAX, mapZoom + 0.25);
         applyMapZoom();
       });
       document.getElementById('zoom-out').addEventListener('click', () => {
         haptic([15]);
-        mapZoom = Math.max(MAP_ZOOM_MIN, mapZoom - 0.5);
+        mapZoom = Math.max(MAP_ZOOM_MIN, mapZoom - 0.25);
         applyMapZoom();
       });
 
