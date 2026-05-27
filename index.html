@@ -53,6 +53,11 @@
       }
 
       * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      /* Disable browser double-tap zoom and native pinch zoom on the whole
+         page. Our map has its own pinch handler; the AR camera view must
+         never accidentally scale the browser chrome. */
+      html { touch-action: manipulation; }
+      body { touch-action: manipulation; }
 
       html, body {
         height: 100%;
@@ -2675,98 +2680,136 @@
       const MAP_ZOOM_MIN = 1;
       const MAP_ZOOM_MAX = 2.5;
 
-      // Zoom around the current viewport centre (or an explicit pixel anchor).
-      // anchorX/Y are pixel coordinates in the wrap's client space (viewport).
-      function applyMapZoom(anchorClientX, anchorClientY) {
+      // Compute the natural stage dimensions for a given zoom level.
+      function stageSize(zoom) {
+        const wrap  = document.getElementById('map-wrap');
+        const baseH = wrap.clientHeight;
+        const baseW = baseH * 1.75;
+        return {
+          w: Math.max(wrap.clientWidth,  baseW * zoom),
+          h: Math.max(wrap.clientHeight, baseH * zoom),
+        };
+      }
+
+      // Resize the stage and reposition scroll so the content point that
+      // was under anchorX/Y (in wrap-viewport coords) stays there.
+      // Call this AFTER updating mapZoom.
+      // oldZoom is the zoom value before the change; pass it explicitly so
+      // the math never reads a stale offsetWidth from a prior rAF.
+      function applyMapZoom(oldZoom, anchorX, anchorY) {
         const wrap  = document.getElementById('map-wrap');
         const stage = document.getElementById('map-stage');
         if (!wrap || !stage) return;
 
-        const prevW = stage.offsetWidth  || wrap.clientWidth;
-        const prevH = stage.offsetHeight || wrap.clientHeight;
-
         // Default anchor: centre of the visible viewport
-        const ax = anchorClientX != null ? anchorClientX : wrap.clientWidth  / 2;
-        const ay = anchorClientY != null ? anchorClientY : wrap.clientHeight / 2;
+        const ax = anchorX != null ? anchorX : wrap.clientWidth  / 2;
+        const ay = anchorY != null ? anchorY : wrap.clientHeight / 2;
 
-        // Content-space point under the anchor before zoom
+        // Stage dimensions before and after
+        const prev = stageSize(oldZoom);
+        const next = stageSize(mapZoom);
+
+        // Content-space point under the anchor at the OLD zoom
         const contentX = wrap.scrollLeft + ax;
         const contentY = wrap.scrollTop  + ay;
-        const fracX    = contentX / prevW;
-        const fracY    = contentY / prevH;
 
-        const baseH  = wrap.clientHeight;
-        const baseW  = baseH * 1.75;
-        const targetW = Math.max(wrap.clientWidth,  baseW * mapZoom);
-        const targetH = Math.max(wrap.clientHeight, baseH * mapZoom);
+        // Scale that point to the new stage size
+        const scaledX  = contentX * (next.w / prev.w);
+        const scaledY  = contentY * (next.h / prev.h);
 
-        stage.style.width      = targetW + 'px';
-        stage.style.height     = targetH + 'px';
+        stage.style.width       = next.w + 'px';
+        stage.style.height      = next.h + 'px';
         stage.style.aspectRatio = 'auto';
 
-        // Scroll so the same content point stays under the anchor
-        requestAnimationFrame(() => {
-          wrap.scrollLeft = Math.max(0, Math.min(targetW - wrap.clientWidth,  fracX * targetW - ax));
-          wrap.scrollTop  = Math.max(0, Math.min(targetH - wrap.clientHeight, fracY * targetH - ay));
-        });
+        // Apply scroll synchronously — layout is already dirty from the
+        // style writes above, so rAF would read stale clientWidth in some
+        // engines. Setting scrollLeft/Top here is safe because the browser
+        // will resolve layout before painting.
+        wrap.scrollLeft = Math.max(0, Math.min(next.w - wrap.clientWidth,  scaledX - ax));
+        wrap.scrollTop  = Math.max(0, Math.min(next.h - wrap.clientHeight, scaledY - ay));
       }
 
       document.getElementById('zoom-in').addEventListener('click', () => {
         haptic([15]);
+        const old = mapZoom;
         mapZoom = Math.min(MAP_ZOOM_MAX, mapZoom + 0.25);
-        applyMapZoom();
+        applyMapZoom(old);           // no anchor → defaults to viewport centre
       });
       document.getElementById('zoom-out').addEventListener('click', () => {
         haptic([15]);
+        const old = mapZoom;
         mapZoom = Math.max(MAP_ZOOM_MIN, mapZoom - 0.25);
-        applyMapZoom();
+        applyMapZoom(old);
       });
 
       // ---- Pinch-to-zoom ----------------------------------------
+      // Freeze the entire initial state at touchstart so every touchmove
+      // frame recomputes scroll from a stable baseline — no drift, no
+      // anchor wandering.
       (function () {
-        const wrap = document.getElementById('map-wrap');
-        let pinchStartDist = 0;
-        let pinchStartZoom = 1;
-        let pinchMidX = 0, pinchMidY = 0;
+        const wrap  = document.getElementById('map-wrap');
+        let pinch   = null;   // { startDist, startZoom, startScrollLeft, startScrollTop, midX, midY }
 
-        function dist(t) {
+        function touchDist(t) {
           const dx = t[0].clientX - t[1].clientX;
           const dy = t[0].clientY - t[1].clientY;
           return Math.sqrt(dx * dx + dy * dy);
-        }
-        function mid(t, rect) {
-          return {
-            x: ((t[0].clientX + t[1].clientX) / 2) - rect.left,
-            y: ((t[0].clientY + t[1].clientY) / 2) - rect.top,
-          };
         }
 
         wrap.addEventListener('touchstart', (e) => {
           if (e.touches.length === 2) {
             e.preventDefault();
-            pinchStartDist = dist(e.touches);
-            pinchStartZoom = mapZoom;
-            const m = mid(e.touches, wrap.getBoundingClientRect());
-            pinchMidX = m.x;
-            pinchMidY = m.y;
+            const rect = wrap.getBoundingClientRect();
+            pinch = {
+              startDist:       touchDist(e.touches),
+              startZoom:       mapZoom,
+              startScrollLeft: wrap.scrollLeft,
+              startScrollTop:  wrap.scrollTop,
+              // midpoint in wrap-viewport coords (stable for this gesture)
+              midX: ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left,
+              midY: ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top,
+            };
           }
         }, { passive: false });
 
         wrap.addEventListener('touchmove', (e) => {
-          if (e.touches.length === 2) {
-            e.preventDefault();
-            const d = dist(e.touches);
-            if (pinchStartDist === 0) return;
-            mapZoom = Math.max(MAP_ZOOM_MIN,
-                       Math.min(MAP_ZOOM_MAX, pinchStartZoom * (d / pinchStartDist)));
-            applyMapZoom(pinchMidX, pinchMidY);
-          }
+          if (e.touches.length !== 2 || !pinch) return;
+          e.preventDefault();
+
+          const scale   = touchDist(e.touches) / pinch.startDist;
+          const newZoom = Math.max(MAP_ZOOM_MIN,
+                           Math.min(MAP_ZOOM_MAX, pinch.startZoom * scale));
+          mapZoom = newZoom;
+
+          const stage = document.getElementById('map-stage');
+          const prev  = stageSize(pinch.startZoom);   // baseline size
+          const next  = stageSize(newZoom);
+
+          // The content point under the initial midpoint at the start scroll
+          const contentX = pinch.startScrollLeft + pinch.midX;
+          const contentY = pinch.startScrollTop  + pinch.midY;
+
+          // Where that point lands in the new stage
+          const scaledX  = contentX * (next.w / prev.w);
+          const scaledY  = contentY * (next.h / prev.h);
+
+          stage.style.width       = next.w + 'px';
+          stage.style.height      = next.h + 'px';
+          stage.style.aspectRatio = 'auto';
+
+          wrap.scrollLeft = Math.max(0, Math.min(next.w - wrap.clientWidth,  scaledX - pinch.midX));
+          wrap.scrollTop  = Math.max(0, Math.min(next.h - wrap.clientHeight, scaledY - pinch.midY));
         }, { passive: false });
 
-        wrap.addEventListener('touchend', () => {
-          if (pinchStartDist !== 0) pinchStartDist = 0;
-        }, { passive: true });
+        wrap.addEventListener('touchend',   () => { pinch = null; }, { passive: true });
+        wrap.addEventListener('touchcancel',() => { pinch = null; }, { passive: true });
       })();
+
+      // Block browser-level pinch zoom globally (needed on iOS ≥ 10 which
+      // ignores user-scalable=no). Only fires when 2+ fingers are on screen.
+      document.addEventListener('touchstart', (e) => {
+        if (e.touches.length >= 2) e.preventDefault();
+      }, { passive: false });
 
       /* ============================================================
          RESTART
