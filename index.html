@@ -751,28 +751,6 @@
       }
 
       /* Map zoom controls */
-      .map-zoom {
-        position: absolute;
-        right: 1rem;
-        bottom: calc(env(safe-area-inset-bottom, 0px) + 11rem);
-        z-index: 7;
-        display: flex;
-        flex-direction: column;
-        gap: 0.4rem;
-      }
-      .map-zoom button {
-        width: 36px; height: 36px;
-        border-radius: 50%;
-        background: rgba(255,255,255,0.92);
-        color: var(--ink);
-        font-size: 1.2rem;
-        font-weight: 700;
-        display: grid;
-        place-items: center;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.18);
-        line-height: 1;
-      }
-      .map-zoom button:active { transform: scale(0.93); }
 
       /* Trace bubble (quote callout) */
       .trace-bubble {
@@ -1381,10 +1359,6 @@
         </div>
       </div>
 
-      <div class="map-zoom" id="map-zoom">
-        <button id="zoom-in" aria-label="Zoom in" type="button">+</button>
-        <button id="zoom-out" aria-label="Zoom out" type="button">−</button>
-      </div>
 
       <div class="trace-panel">
         <div class="trace-bee-badge" aria-hidden="true">🐝</div>
@@ -2676,162 +2650,6 @@
         backToAR();
       });
 
-      /* ============================================================
-         MAP ZOOM
-         ============================================================ */
-      let mapZoom = 1;
-      const MAP_ZOOM_MIN = 1;
-      const MAP_ZOOM_MAX = 2.5;
-
-      // Compute the natural stage dimensions for a given zoom level.
-      function stageSize(zoom) {
-        const wrap  = document.getElementById('map-wrap');
-        const baseH = wrap.clientHeight;
-        const baseW = baseH * 1.75;
-        return {
-          w: Math.max(wrap.clientWidth,  baseW * zoom),
-          h: Math.max(wrap.clientHeight, baseH * zoom),
-        };
-      }
-
-      // Resize the stage and reposition scroll so the content point that
-      // was under anchorX/Y (in wrap-viewport coords) stays there.
-      // Call this AFTER updating mapZoom.
-      // oldZoom is the zoom value before the change; pass it explicitly so
-      // the math never reads a stale offsetWidth from a prior rAF.
-      function applyMapZoom(oldZoom, anchorX, anchorY) {
-        const wrap  = document.getElementById('map-wrap');
-        const stage = document.getElementById('map-stage');
-        if (!wrap || !stage) return;
-
-        // Default anchor: centre of the visible viewport
-        const ax = anchorX != null ? anchorX : wrap.clientWidth  / 2;
-        const ay = anchorY != null ? anchorY : wrap.clientHeight / 2;
-
-        // Stage dimensions before and after
-        const prev = stageSize(oldZoom);
-        const next = stageSize(mapZoom);
-
-        // Content-space point under the anchor at the OLD zoom
-        const contentX = wrap.scrollLeft + ax;
-        const contentY = wrap.scrollTop  + ay;
-
-        // Scale that point to the new stage size
-        const scaledX  = contentX * (next.w / prev.w);
-        const scaledY  = contentY * (next.h / prev.h);
-
-        stage.style.width       = next.w + 'px';
-        stage.style.height      = next.h + 'px';
-        stage.style.aspectRatio = 'auto';
-
-        // Apply scroll synchronously — layout is already dirty from the
-        // style writes above, so rAF would read stale clientWidth in some
-        // engines. Setting scrollLeft/Top here is safe because the browser
-        // will resolve layout before painting.
-        wrap.scrollLeft = Math.max(0, Math.min(next.w - wrap.clientWidth,  scaledX - ax));
-        wrap.scrollTop  = Math.max(0, Math.min(next.h - wrap.clientHeight, scaledY - ay));
-      }
-
-      document.getElementById('zoom-in').addEventListener('click', () => {
-        haptic([15]);
-        const old = mapZoom;
-        mapZoom = Math.min(MAP_ZOOM_MAX, mapZoom + 0.25);
-        applyMapZoom(old);           // no anchor → defaults to viewport centre
-      });
-      document.getElementById('zoom-out').addEventListener('click', () => {
-        haptic([15]);
-        const old = mapZoom;
-        mapZoom = Math.max(MAP_ZOOM_MIN, mapZoom - 0.25);
-        applyMapZoom(old);
-      });
-
-      // ---- Pinch-to-zoom ----------------------------------------
-      // Delta / incremental approach — exactly how Google Maps and iOS Photos
-      // work. Each touchmove frame computes the *change* since the previous
-      // frame (ΔscaleFactor + Δpan), then applies it to the current scroll
-      // state. There is no frozen baseline that can drift; the anchor always
-      // follows the live midpoint between the two fingers.
-      (function () {
-        const wrap  = document.getElementById('map-wrap');
-        let active  = false;
-        let prevDist = 1;
-        let prevMidX = 0, prevMidY = 0;
-
-        function fingerDist(t) {
-          const dx = t[0].clientX - t[1].clientX;
-          const dy = t[0].clientY - t[1].clientY;
-          return Math.sqrt(dx * dx + dy * dy) || 1;
-        }
-        function fingerMid(t) {
-          const rect = wrap.getBoundingClientRect();
-          return {
-            x: (t[0].clientX + t[1].clientX) / 2 - rect.left,
-            y: (t[0].clientY + t[1].clientY) / 2 - rect.top,
-          };
-        }
-
-        wrap.addEventListener('touchstart', (e) => {
-          if (e.touches.length === 2) {
-            // Don't preventDefault here — let the browser recognise the gesture
-            // properly before we take over in touchmove.
-            const m = fingerMid(e.touches);
-            prevDist = fingerDist(e.touches);
-            prevMidX = m.x;
-            prevMidY = m.y;
-            active   = true;
-          } else {
-            active = false;
-          }
-        }, { passive: true });
-
-        wrap.addEventListener('touchmove', (e) => {
-          if (!active || e.touches.length !== 2) return;
-          // Must preventDefault to stop native scroll during a pinch.
-          e.preventDefault();
-
-          const stage     = document.getElementById('map-stage');
-          const curDist   = fingerDist(e.touches);
-          const cur       = fingerMid(e.touches);
-
-          // ── incremental scale ──────────────────────────────────────
-          const deltaScale = curDist / prevDist;
-          const oldZoom    = mapZoom;
-          mapZoom = Math.max(MAP_ZOOM_MIN, Math.min(MAP_ZOOM_MAX, mapZoom * deltaScale));
-          const actualScale = mapZoom / oldZoom;   // clamped ratio
-
-          // ── incremental pan (midpoint movement) ────────────────────
-          const panX = cur.x - prevMidX;
-          const panY = cur.y - prevMidY;
-
-          // ── resize stage ───────────────────────────────────────────
-          const prev = stageSize(oldZoom);
-          const next = stageSize(mapZoom);
-          stage.style.width       = next.w + 'px';
-          stage.style.height      = next.h + 'px';
-          stage.style.aspectRatio = 'auto';
-
-          // ── reposition scroll ──────────────────────────────────────
-          // The content under cur.x/y should stay there after both the
-          // pan and the scale. Formula:
-          //   contentX (in old stage coords) = scrollLeft + cur.x - panX
-          //   After scale: contentX maps to contentX * actualScale
-          //   We want that at cur.x → scrollLeft = contentX * actualScale - cur.x
-          const contentX = wrap.scrollLeft + cur.x - panX;
-          const contentY = wrap.scrollTop  + cur.y - panY;
-          wrap.scrollLeft = Math.max(0, Math.min(next.w - wrap.clientWidth,  contentX * actualScale - cur.x));
-          wrap.scrollTop  = Math.max(0, Math.min(next.h - wrap.clientHeight, contentY * actualScale - cur.y));
-
-          // ── save for next frame ────────────────────────────────────
-          prevDist = curDist;
-          prevMidX = cur.x;
-          prevMidY = cur.y;
-        }, { passive: false });
-
-        wrap.addEventListener('touchend', (e) => {
-          if (e.touches.length < 2) active = false;
-        }, { passive: true });
-        wrap.addEventListener('touchcancel', () => { active = false; }, { passive: true });
-      })();
 
       /* ============================================================
          RESTART
