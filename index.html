@@ -1,0 +1,2713 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#1a1208" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Cervecería de Zarra</title>
+
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.5.4/dist/aframe-extras.min.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Megrim&family=Nunito:wght@300;400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      /* ==========================================================
+         DESIGN TOKENS
+         ========================================================== */
+      :root {
+        --orange:     #E48043;
+        --orange-soft:#F0A06B;
+        --magenta:    #C8438A;
+        --magenta-dk: #A8326F;
+        --cream:      #FBF1DC;
+        --paper:      #FFFCEF;
+        --ink:        #2A1A0E;
+        --ink-soft:   rgba(42, 26, 14, 0.6);
+        --ink-faint:  rgba(42, 26, 14, 0.35);
+        --map-bg:     #B7D6D2;   /* shallow-sea blue-green */
+        --map-land:   #D7B98C;   /* warm sand */
+        --map-land-2: #C9A878;
+        --bg:         #1a1208;
+
+        --font-display: 'Megrim', cursive;
+        --font-body:    'Nunito', system-ui, sans-serif;
+
+        --t-fast: 180ms;
+        --t-med:  360ms;
+        --t-slow: 720ms;
+        --ease:     cubic-bezier(0.4, 0, 0.2, 1);
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+      html, body {
+        height: 100%;
+        height: -webkit-fill-available;
+      }
+      body {
+        margin: 0; padding: 0;
+        width: 100%;
+        min-height: 100dvh;
+        overflow: hidden;
+        overscroll-behavior: none;
+        background: #1a1208;
+        font-family: var(--font-body);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      img { display: block; max-width: 100%; }
+      button {
+        appearance: none; border: 0; background: 0; cursor: pointer;
+        font: inherit; color: inherit;
+      }
+      input, select {
+        font: inherit; color: inherit;
+      }
+
+      a-scene {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        z-index: 1;
+      }
+      a-scene canvas {
+        width: 100% !important;
+        height: 100% !important;
+        display: block !important;
+      }
+      .a-enter-vr, .a-enter-ar,
+      .a-enter-vr-button, .a-enter-ar-button { display: none !important; }
+
+      /* ==========================================================
+         SCREEN SYSTEM
+         ========================================================== */
+      .screen {
+        position: fixed; inset: 0;
+        z-index: 5;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: max(env(safe-area-inset-top, 0px), 1rem)
+                 1.4rem
+                 max(env(safe-area-inset-bottom, 0px), 1.2rem);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity var(--t-med) var(--ease),
+                    visibility var(--t-med) var(--ease);
+        pointer-events: none;
+      }
+      .screen.is-active {
+        opacity: 1; visibility: visible;
+        pointer-events: auto;
+      }
+
+      /* ==========================================================
+         STATE 1 · INTRO / MAIN MENU
+         ========================================================== */
+      #screen-intro {
+        z-index: 50;
+        background: #1a1208;
+        justify-content: flex-start;
+        padding: 0;
+      }
+      .intro-bg {
+        position: absolute;
+        inset: -8% -6%;
+        background-image: url('./assets/village-bg.png');
+        background-size: cover;
+        background-position: center top;
+        filter: brightness(0.85) saturate(1.05);
+        z-index: 0;
+        will-change: transform;
+        pointer-events: none;
+        transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .intro-bg::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          to bottom,
+          rgba(20, 14, 8, 0.55) 0%,
+          rgba(20, 14, 8, 0.18) 32%,
+          rgba(20, 14, 8, 0.10) 55%,
+          rgba(20, 14, 8, 0.55) 82%,
+          rgba(20, 14, 8, 0.92) 100%
+        );
+      }
+      /* Parallax mid-layer (silhouette over background for depth) */
+      .intro-mist {
+        position: absolute;
+        inset: -4%;
+        background: radial-gradient(ellipse at 50% 90%, rgba(228,128,67,0.22) 0%, rgba(228,128,67,0) 60%),
+                    radial-gradient(ellipse at 50% 5%, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 50%);
+        z-index: 0;
+        pointer-events: none;
+        will-change: transform;
+        transition: transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .intro-inner {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: max(env(safe-area-inset-top, 0px), 1.2rem)
+                 1.6rem
+                 max(env(safe-area-inset-bottom, 0px), 1.8rem);
+      }
+      .intro-langbar {
+        align-self: flex-end;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: #fff;
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        padding: 0.4rem 0.8rem;
+        border-radius: 999px;
+        background: rgba(20,14,8,0.45);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(255,255,255,0.18);
+        cursor: pointer;
+        transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+        user-select: none;
+      }
+      .intro-langbar:active { transform: scale(0.96); }
+      .intro-langbar .flag {
+        font-size: 1.1rem;
+        line-height: 1;
+      }
+      .intro-logo {
+        width: clamp(88px, 24vw, 120px);
+        height: clamp(88px, 24vw, 120px);
+        margin-top: 0.4rem;
+        display: grid;
+        place-items: center;
+        position: relative;
+        filter: drop-shadow(0 6px 22px rgba(0,0,0,0.55));
+      }
+      .intro-logo img { width: 100%; height: 100%; object-fit: contain; }
+      .intro-title {
+        margin: 0.7rem 0 0.5rem;
+        font-family: var(--font-display);
+        font-size: clamp(1.4rem, 5.8vw, 2rem);
+        letter-spacing: 0.07em;
+        color: var(--orange);
+        text-align: center;
+        line-height: 1;
+        text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+      }
+      .intro-tagline {
+        margin: 0 0 0.8rem;
+        font-style: italic;
+        font-weight: 600;
+        font-size: clamp(0.85rem, 3.8vw, 1.05rem);
+        color: #fdf6e3;
+        text-align: center;
+      }
+      .intro-desc {
+        margin: 0;
+        max-width: 20rem;
+        font-style: italic;
+        font-weight: 300;
+        font-size: clamp(0.78rem, 3.3vw, 0.92rem);
+        line-height: 1.4;
+        color: rgba(253, 246, 227, 0.92);
+        text-align: center;
+      }
+      .intro-spacer { flex: 1; }
+      .intro-cta {
+        width: min(86vw, 360px);
+        background: var(--orange);
+        color: #fff;
+        font-family: var(--font-body);
+        font-weight: 600;
+        font-size: 1.2rem;
+        padding: 1.1rem 1.4rem;
+        border-radius: 999px;
+        box-shadow: 0 10px 28px rgba(228, 128, 67, 0.45);
+        transition: transform var(--t-fast) var(--ease),
+                    box-shadow var(--t-fast) var(--ease);
+      }
+      .intro-cta:active {
+        transform: translateY(1px) scale(0.98);
+        box-shadow: 0 4px 14px rgba(228, 128, 67, 0.32);
+      }
+
+      /* ==========================================================
+         STATE 2 · CAMERA PERMISSION
+         ========================================================== */
+      #screen-permission {
+        z-index: 51;
+        background: #1a1208;
+        justify-content: center;
+        padding: 0;
+      }
+      .perm-back {
+        position: absolute;
+        top: max(env(safe-area-inset-top, 0px), 1rem);
+        left: 1.2rem;
+        z-index: 2;
+        font-size: 1.4rem;
+        color: var(--magenta);
+        line-height: 1;
+        padding: 0.6rem;
+      }
+      .perm-card {
+        position: relative;
+        z-index: 1;
+        background: var(--orange);
+        color: #fff;
+        border-radius: 28px;
+        padding: 2rem 1.8rem 1.6rem;
+        width: min(84vw, 360px);
+        text-align: center;
+        box-shadow: 0 24px 60px rgba(0,0,0,0.4);
+        transform: translateY(20px) scale(0.96);
+        opacity: 0;
+        transition: transform var(--t-slow) var(--ease-out),
+                    opacity var(--t-slow) var(--ease-out);
+      }
+      #screen-permission.is-active .perm-card {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+      .perm-icon {
+        margin: 0.4rem auto 1.1rem;
+        width: 56px;
+        height: 56px;
+        display: grid;
+        place-items: center;
+      }
+      .perm-icon svg { width: 56px; height: 56px; stroke: #fff; }
+      .perm-title {
+        margin: 0 0 1rem;
+        font-family: var(--font-display);
+        font-size: 1.8rem;
+        letter-spacing: 0.08em;
+      }
+      .perm-body {
+        margin: 0 0 1.6rem;
+        font-style: italic;
+        font-weight: 600;
+        line-height: 1.45;
+        font-size: 1rem;
+      }
+      .perm-actions {
+        display: flex;
+        gap: 0.7rem;
+        justify-content: center;
+      }
+      .perm-btn {
+        flex: 1;
+        max-width: 160px;
+        padding: 0.9rem 1.2rem;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 1rem;
+        transition: transform var(--t-fast) var(--ease);
+      }
+      .perm-btn:active { transform: scale(0.97); }
+      .perm-btn--ghost { background: #fff; color: var(--ink); }
+      .perm-btn--solid { background: var(--magenta); color: #fff; box-shadow: 0 6px 18px rgba(200,67,138,0.35); }
+
+      /* ==========================================================
+         STATE 3 · SCANNING
+         ========================================================== */
+      #screen-scan { background: transparent; pointer-events: auto; justify-content: center; }
+      .scan-frame {
+        position: relative;
+        width: min(62vw, 240px);
+        aspect-ratio: 0.62;
+        max-height: 50vh;
+        border: 1px solid rgba(253, 246, 227, 0.45);
+        animation: scan-pulse 2.4s ease-in-out infinite;
+      }
+      .scan-frame::before,
+      .scan-frame::after,
+      .scan-frame > i:nth-child(1),
+      .scan-frame > i:nth-child(2) {
+        content: '';
+        position: absolute;
+        width: 22px; height: 22px;
+        border: 2px solid var(--orange);
+      }
+      .scan-frame::before { top: -1px; left: -1px;  border-right: 0; border-bottom: 0; }
+      .scan-frame::after  { top: -1px; right: -1px; border-left:  0; border-bottom: 0; }
+      .scan-frame > i:nth-child(1) { bottom: -1px; left: -1px;  border-right: 0; border-top: 0; }
+      .scan-frame > i:nth-child(2) { bottom: -1px; right: -1px; border-left:  0; border-top: 0; }
+      .scan-hint {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        font-family: var(--font-display);
+        font-size: 1.3rem;
+        letter-spacing: 0.18em;
+        color: #fdf6e3;
+        white-space: nowrap;
+        text-align: center;
+        text-shadow: 0 2px 12px rgba(0,0,0,0.7);
+        pointer-events: none;
+        z-index: 11;
+      }
+      .scan-hint em {
+        display: block;
+        font-family: var(--font-body);
+        font-style: normal;
+        font-weight: 300;
+        font-size: 0.72rem;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: rgba(253, 246, 227, 0.5);
+        margin-top: 0.6rem;
+      }
+      @keyframes scan-pulse {
+        0%, 100% { transform: scale(1);     opacity: 1;    }
+        50%      { transform: scale(1.035); opacity: 0.55; }
+      }
+      .dev-skip {
+        position: fixed;
+        bottom: calc(env(safe-area-inset-bottom, 0) + 1rem);
+        right: 1rem;
+        z-index: 100;
+        font-size: 0.7rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(253, 246, 227, 0.5);
+        padding: 0.5rem 0.9rem;
+        border: 1px solid rgba(253, 246, 227, 0.2);
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(6px);
+      }
+      body:not(.is-debug) .dev-skip { display: none; }
+
+      /* ==========================================================
+         WEBXR CAPABILITY BADGE
+         ========================================================== */
+      .xr-badge {
+        position: fixed;
+        top: max(env(safe-area-inset-top, 0), 0.9rem);
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 14;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.55);
+        color: #ffd84a;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 216, 74, 0.35);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+      }
+      .xr-badge.is-on { opacity: 1; }
+      body:not([data-state="bee"]) .xr-badge { opacity: 0; }
+
+      /* ==========================================================
+         STATE 4 · BEE (AR overlay UI)
+         ========================================================== */
+      #screen-bee {
+        background: transparent;
+        pointer-events: none;
+        justify-content: flex-end;
+        z-index: 12;
+      }
+
+      /* Hint pill that floats above the bees explaining what to do */
+      .bee-hint {
+        position: fixed;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 6.5rem);
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 13;
+        color: #fdf6e3;
+        font-family: var(--font-display);
+        font-size: 1rem;
+        letter-spacing: 0.14em;
+        text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+        padding: 0.45rem 1rem;
+        border-radius: 999px;
+        background: rgba(0,0,0,0.35);
+        backdrop-filter: blur(6px);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+      }
+      .bee-hint.is-on { opacity: 1; }
+      .bee-msg {
+        pointer-events: none;
+        margin-bottom: 1rem;
+        color: #fdf6e3;
+        font-family: var(--font-display);
+        font-size: 1.4rem;
+        letter-spacing: 0.12em;
+        text-shadow: 0 2px 12px rgba(0,0,0,0.7);
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity 0.6s ease, transform 0.6s ease;
+      }
+      #screen-bee.is-active .bee-msg {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .bee-cta {
+        pointer-events: auto;
+        background: var(--orange);
+        color: #fff;
+        font-weight: 600;
+        font-size: 1.05rem;
+        padding: 0.95rem 2.2rem;
+        border-radius: 999px;
+        box-shadow: 0 8px 22px rgba(228,128,67,0.45);
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.6s ease 1.6s, transform 0.6s ease 1.6s;
+      }
+      #screen-bee.is-active .bee-cta {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .bee-cta:active { transform: scale(0.97); }
+
+      /* ==========================================================
+         STATE 5 · PROFILE
+         ========================================================== */
+      #screen-profile {
+        background: var(--cream);
+        justify-content: center;
+        overflow: hidden;
+      }
+      .profile-bg {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background:
+          radial-gradient(circle at 12% 8%, rgba(228,128,67,0.18) 0 60px, transparent 80px),
+          radial-gradient(circle at 88% 16%, rgba(228,128,67,0.18) 0 80px, transparent 100px);
+        opacity: 0.55;
+      }
+      .profile-dots {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        opacity: 0.45;
+        pointer-events: none;
+      }
+      .profile-bee {
+        position: absolute;
+        z-index: 0;
+        font-size: 2.6rem;
+        opacity: 0.55;
+        filter: hue-rotate(-12deg) saturate(0.9);
+      }
+      .profile-bee.b1 { top: 5%;  left: 8%; transform: rotate(-12deg); }
+      .profile-bee.b2 { top: 10%; right: 6%; transform: rotate(18deg) scaleX(-1); font-size: 3rem; }
+      .profile-back {
+        position: absolute;
+        top: max(env(safe-area-inset-top, 0px), 1rem);
+        left: 1.2rem;
+        z-index: 2;
+        font-size: 1.4rem;
+        color: var(--magenta);
+        line-height: 1;
+        padding: 0.6rem;
+      }
+      .profile-card {
+        position: relative;
+        z-index: 1;
+        width: min(86vw, 360px);
+        background: var(--orange);
+        border-radius: 24px;
+        padding: 1.8rem 1.6rem 1.7rem;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.18);
+        color: #fff;
+      }
+      .profile-title {
+        margin: 0 0 1.4rem;
+        font-family: var(--font-display);
+        font-size: 1.85rem;
+        letter-spacing: 0.07em;
+        line-height: 1.1;
+      }
+      .profile-label {
+        display: block;
+        margin: 0 0 0.4rem;
+        font-style: italic;
+        font-weight: 600;
+        font-size: 1rem;
+        color: #fff;
+      }
+      .profile-field {
+        position: relative;
+        margin-bottom: 1.1rem;
+      }
+      .profile-field select,
+      .profile-field input {
+        width: 100%;
+        background: #fff;
+        color: var(--ink);
+        border: 0;
+        border-radius: 999px;
+        padding: 0.95rem 1.2rem;
+        font-size: 1rem;
+        outline: none;
+      }
+      .profile-field select {
+        appearance: none;
+        -webkit-appearance: none;
+        padding-right: 2.6rem;
+      }
+      .profile-field .caret {
+        position: absolute;
+        right: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 16px; height: 16px;
+        stroke: var(--ink-soft);
+        fill: none;
+        stroke-width: 2.5;
+        pointer-events: none;
+      }
+      .profile-continue {
+        display: block;
+        margin: 1.5rem auto 0;
+        background: var(--magenta);
+        color: #fff;
+        font-weight: 600;
+        font-size: 1.05rem;
+        padding: 0.9rem 2.4rem;
+        border-radius: 999px;
+        box-shadow: 0 8px 22px rgba(200,67,138,0.4);
+        position: relative;
+        z-index: 1;
+        transition: transform var(--t-fast) var(--ease);
+      }
+      .profile-continue:active { transform: scale(0.97); }
+      .profile-continue:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+
+      /* ==========================================================
+         STATE 6 · MAP (Leave Your Trace)
+         ========================================================== */
+      #screen-map {
+        background: var(--map-bg);
+        padding: 0;
+        justify-content: flex-start;
+        overflow: hidden;
+      }
+      .map-wrap {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+        scrollbar-width: none;
+      }
+      .map-wrap::-webkit-scrollbar { display: none; }
+      /* Stage holds the map image + pin layer at a fixed aspect ratio so
+         lat/lng → % math stays exact regardless of phone screen shape.
+         Map source aspect ratio: 7001 / 4001 ≈ 1.75. */
+      .map-stage {
+        position: relative;
+        height: 100%;
+        aspect-ratio: 1.75 / 1;
+        min-width: 100%;
+        background: transparent;
+        transform-origin: 0 0;
+        transition: width var(--t-med) var(--ease), height var(--t-med) var(--ease);
+      }
+      .map-img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: fill;
+        user-select: none;
+        -webkit-user-drag: none;
+        pointer-events: none;
+      }
+      /* "You are here" pulse pin */
+      .here-pin {
+        position: absolute;
+        width: 24px; height: 24px;
+        margin-left: -12px; margin-top: -12px;
+        z-index: 3;
+        pointer-events: none;
+      }
+      .here-pin::before, .here-pin::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+      }
+      .here-pin::before {
+        background: var(--magenta);
+        box-shadow: 0 0 0 3px #fff, 0 6px 14px rgba(0,0,0,0.3);
+        transform: scale(0.45);
+      }
+      .here-pin::after {
+        background: rgba(200,67,138,0.4);
+        animation: here-pulse 1.8s ease-out infinite;
+      }
+      @keyframes here-pulse {
+        0%   { transform: scale(0.5); opacity: 0.6; }
+        100% { transform: scale(1.8); opacity: 0;   }
+      }
+
+      /* Country label hints (small) */
+      .map-label {
+        position: absolute;
+        font-size: 0.55rem;
+        letter-spacing: 0.16em;
+        font-weight: 700;
+        color: rgba(40,28,14,0.55);
+        text-transform: uppercase;
+        pointer-events: none;
+        white-space: nowrap;
+      }
+
+      /* Bee markers that wander */
+      .bee-mark {
+        position: absolute;
+        font-size: 1.4rem;
+        line-height: 1;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2));
+        animation: bee-wander 14s ease-in-out infinite;
+      }
+      .bee-mark.flip { transform: translate(-50%, -50%) scaleX(-1); }
+      @keyframes bee-wander {
+        0%, 100% { transform: translate(-50%, -50%) translate(0px, 0px); }
+        25%      { transform: translate(-50%, -50%) translate(18px, -10px); }
+        50%      { transform: translate(-50%, -50%) translate(8px, 12px); }
+        75%      { transform: translate(-50%, -50%) translate(-14px, -6px); }
+      }
+
+      /* Trace pin (cherry / fruit icon) */
+      .trace-pin {
+        position: absolute;
+        width: 22px; height: 22px;
+        margin-left: -11px; margin-top: -11px;
+        border-radius: 50%;
+        background: #fff;
+        display: grid;
+        place-items: center;
+        font-size: 0.7rem;
+        line-height: 1;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.22);
+        border: 1.5px solid #fff;
+        cursor: pointer;
+        z-index: 2;
+        transition: transform var(--t-fast) var(--ease);
+      }
+      .trace-pin:active { transform: scale(0.9); }
+      .trace-pin.is-mine { box-shadow: 0 0 0 2px var(--magenta), 0 4px 10px rgba(0,0,0,0.3); }
+      .trace-pin.locked {
+        background: rgba(255,255,255,0.55);
+        color: rgba(40,28,14,0.5);
+        font-size: 0.62rem;
+      }
+
+      /* Map zoom controls */
+      .map-zoom {
+        position: absolute;
+        right: 1rem;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 11rem);
+        z-index: 7;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+      .map-zoom button {
+        width: 36px; height: 36px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.92);
+        color: var(--ink);
+        font-size: 1.2rem;
+        font-weight: 700;
+        display: grid;
+        place-items: center;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+        line-height: 1;
+      }
+      .map-zoom button:active { transform: scale(0.93); }
+
+      /* Trace bubble (quote callout) */
+      .trace-bubble {
+        position: absolute;
+        z-index: 4;
+        background: var(--magenta);
+        color: #fff;
+        border-radius: 18px;
+        padding: 0.95rem 1.1rem 0.95rem 3rem;
+        max-width: 78vw;
+        min-width: 250px;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+        opacity: 0;
+        transform: translateY(6px) scale(0.96);
+        transition: opacity 0.32s ease, transform 0.32s ease;
+        pointer-events: none;
+      }
+      .trace-bubble.is-open {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        pointer-events: auto;
+      }
+      .trace-bubble .bub-icon {
+        position: absolute;
+        left: -14px; top: -14px;
+        width: 44px; height: 44px;
+        border-radius: 50%;
+        background: #fff;
+        display: grid;
+        place-items: center;
+        font-size: 1.3rem;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+      }
+      .trace-bubble .bub-quote {
+        margin: 0;
+        font-style: italic;
+        font-weight: 600;
+        font-size: 0.92rem;
+        line-height: 1.35;
+      }
+      .trace-bubble .bub-meta {
+        margin-top: 0.5rem;
+        background: rgba(255,255,255,0.18);
+        color: #fff;
+        border-radius: 999px;
+        padding: 0.3rem 0.7rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.7rem;
+        letter-spacing: 0.06em;
+      }
+      .trace-bubble .bub-meta .who {
+        font-family: var(--font-display);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #C8F2EA;
+        font-size: 0.78rem;
+        margin-right: 0.2rem;
+      }
+      .trace-bubble .bub-close {
+        position: absolute;
+        top: 6px; right: 8px;
+        font-size: 0.85rem;
+        color: rgba(255,255,255,0.7);
+        padding: 0.2rem 0.45rem;
+        line-height: 1;
+      }
+
+      /* Bottom trace input panel */
+      .trace-panel {
+        position: absolute;
+        left: 0; right: 0; bottom: 0;
+        z-index: 5;
+        background: var(--orange);
+        border-radius: 26px 26px 0 0;
+        padding: 2rem 1.4rem calc(env(safe-area-inset-bottom, 0px) + 1.2rem);
+        text-align: center;
+        color: #fff;
+        box-shadow: 0 -10px 30px rgba(0,0,0,0.18);
+      }
+      .trace-bee-badge {
+        position: absolute;
+        top: -32px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 64px; height: 64px;
+        background: #fff;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 2rem;
+        box-shadow: 0 6px 14px rgba(0,0,0,0.18);
+      }
+      .trace-title {
+        margin: 0 0 0.7rem;
+        font-family: var(--font-display);
+        font-size: 1.4rem;
+        letter-spacing: 0.1em;
+      }
+      .trace-input-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #fff;
+        border-radius: 999px;
+        padding: 0.55rem 0.6rem 0.55rem 1.2rem;
+      }
+      .trace-input-row input {
+        flex: 1;
+        min-width: 0;
+        background: transparent;
+        border: 0;
+        outline: none;
+        font-size: 0.95rem;
+        color: var(--ink);
+        font-style: italic;
+        padding: 0.4rem 0;
+      }
+      .trace-input-row input::placeholder { color: var(--ink-faint); font-style: italic; }
+      .trace-send {
+        background: var(--magenta);
+        color: #fff;
+        padding: 0.55rem 1rem;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        flex-shrink: 0;
+      }
+      .trace-send:disabled { opacity: 0.5; }
+
+      /* Flavor strip (locked / unlocked) */
+      .flavor-strip {
+        position: absolute;
+        top: max(env(safe-area-inset-top, 0px), 0.7rem);
+        left: 1rem;
+        right: 1rem;
+        z-index: 6;
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        pointer-events: none;
+      }
+      .flavor-chip {
+        background: rgba(255,255,255,0.92);
+        border-radius: 999px;
+        padding: 0.35rem 0.85rem 0.35rem 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--ink);
+        letter-spacing: 0.04em;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        pointer-events: auto;
+      }
+      .flavor-chip .pip {
+        width: 22px; height: 22px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 0.9rem;
+        line-height: 1;
+        background: var(--orange-soft);
+      }
+      .flavor-chip.locked { color: var(--ink-soft); background: rgba(255,255,255,0.75); }
+      .flavor-chip.locked .pip { background: rgba(0,0,0,0.08); }
+
+      .map-back {
+        position: absolute;
+        top: max(env(safe-area-inset-top, 0px), 0.8rem);
+        right: 1rem;
+        z-index: 7;
+        width: 36px; height: 36px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.85);
+        display: grid;
+        place-items: center;
+        color: var(--ink);
+        font-size: 1.1rem;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+      }
+
+      /* ==========================================================
+         COMMUNITY OVERLAY
+         ========================================================== */
+      .community-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 300;
+        background: rgba(20,14,8,0.6);
+        backdrop-filter: blur(8px);
+        display: grid;
+        place-items: center;
+        padding: 1.4rem;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--t-med) var(--ease);
+      }
+      .community-overlay.is-on {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .community-overlay[hidden] { display: none; }
+      .community-card {
+        position: relative;
+        width: min(86vw, 360px);
+        background: var(--paper);
+        border-radius: 26px;
+        padding: 2.4rem 1.6rem 1.6rem;
+        text-align: center;
+        box-shadow: 0 24px 60px rgba(0,0,0,0.4);
+        transform: translateY(18px) scale(0.96);
+        transition: transform var(--t-slow) var(--ease-out);
+      }
+      .community-overlay.is-on .community-card {
+        transform: translateY(0) scale(1);
+      }
+      .community-badge {
+        position: absolute;
+        top: -28px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 60px; height: 60px;
+        background: var(--orange);
+        color: #fff;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 1.8rem;
+        box-shadow: 0 8px 18px rgba(228,128,67,0.45);
+      }
+      .community-close {
+        position: absolute;
+        top: 10px; right: 12px;
+        font-size: 1rem;
+        color: var(--ink-soft);
+        padding: 0.3rem 0.5rem;
+        line-height: 1;
+      }
+      .community-title {
+        margin: 0.4rem 0 0.7rem;
+        font-family: var(--font-display);
+        font-size: 1.6rem;
+        letter-spacing: 0.08em;
+        color: var(--ink);
+      }
+      .community-body {
+        margin: 0 0 1.4rem;
+        font-style: italic;
+        font-weight: 600;
+        font-size: 0.95rem;
+        line-height: 1.45;
+        color: var(--ink-soft);
+      }
+      .community-actions {
+        display: flex;
+        gap: 0.6rem;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .community-btn {
+        padding: 0.85rem 1.4rem;
+        border-radius: 999px;
+        font-weight: 700;
+        font-size: 0.95rem;
+        transition: transform var(--t-fast) var(--ease);
+      }
+      .community-btn:active { transform: scale(0.97); }
+      .community-btn--solid {
+        background: var(--magenta);
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(200,67,138,0.4);
+      }
+      .community-btn--ghost {
+        background: transparent;
+        color: var(--ink-soft);
+      }
+
+      /* Toast for "trace added" */
+      .toast {
+        position: fixed;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 11rem);
+        left: 50%;
+        transform: translateX(-50%) translateY(10px);
+        z-index: 200;
+        background: rgba(40,28,14,0.92);
+        color: #fdf6e3;
+        font-size: 0.8rem;
+        letter-spacing: 0.04em;
+        padding: 0.6rem 1.1rem;
+        border-radius: 999px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .toast.is-on {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      /* Restart pill */
+      .restart-btn {
+        position: fixed;
+        bottom: calc(env(safe-area-inset-bottom, 0) + 1rem);
+        left: 1rem;
+        z-index: 100;
+        width: 36px; height: 36px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(6px);
+        color: rgba(253, 246, 227, 0.85);
+        font-size: 1rem;
+        display: none;
+        place-items: center;
+        border: 1px solid rgba(253, 246, 227, 0.18);
+      }
+      body[data-state="scan"] .restart-btn,
+      body[data-state="bee"] .restart-btn,
+      body[data-state="profile"] .restart-btn { display: grid; }
+      body[data-state="map"]    .restart-btn { display: none; }
+
+      /* ==========================================================
+         FLAVOUR PICKER (scan screen — demo control)
+         ========================================================== */
+      .scan-picker {
+        position: fixed;
+        left: 0; right: 0;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 1.4rem);
+        z-index: 12;
+        display: flex;
+        justify-content: center;
+        gap: 0.55rem;
+        padding: 0 1rem;
+        pointer-events: auto;
+      }
+      body[data-state="scan"] .scan-picker { display: flex; }
+      body:not([data-state="scan"]) .scan-picker { display: none; }
+      .scan-picker .sp-label {
+        position: absolute;
+        top: -1.4rem;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.65rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(253,246,227,0.55);
+        white-space: nowrap;
+      }
+      .scan-picker button {
+        flex: 1;
+        max-width: 110px;
+        padding: 0.6rem 0.4rem;
+        border-radius: 999px;
+        background: rgba(0,0,0,0.45);
+        border: 1px solid rgba(253,246,227,0.25);
+        color: #fdf6e3;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.3rem;
+        backdrop-filter: blur(6px);
+        transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+      }
+      .scan-picker button:active { transform: scale(0.95); }
+      .scan-picker button.is-selected {
+        background: var(--orange);
+        border-color: var(--orange);
+        color: #fff;
+        box-shadow: 0 6px 16px rgba(228,128,67,0.4);
+      }
+
+      /* ==========================================================
+         GENERIC UX MODAL (NOT SO FAST · THANK YOU · SCAN A NEW BEER)
+         Reuses .community-overlay styles, just driven dynamically.
+         ========================================================== */
+      .flavor-chip.is-filter { cursor: pointer; pointer-events: auto; }
+      .flavor-chip.is-active {
+        background: var(--magenta);
+        color: #fff;
+        box-shadow: 0 6px 16px rgba(200,67,138,0.4);
+      }
+      .flavor-chip.is-active .pip { background: rgba(255,255,255,0.25); }
+
+      /* "Scan another beer" CTA shown post-submission in trace panel */
+      .scan-again-btn {
+        display: none;
+        margin: 0.8rem auto 0;
+        background: var(--magenta);
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.95rem;
+        padding: 0.7rem 1.5rem;
+        border-radius: 999px;
+        box-shadow: 0 6px 16px rgba(200,67,138,0.4);
+        transition: transform var(--t-fast) var(--ease);
+      }
+      .scan-again-btn:active { transform: scale(0.97); }
+      body[data-submitted="1"] .scan-again-btn { display: inline-block; }
+      body[data-submitted="1"] .trace-title,
+      body[data-submitted="1"] .trace-input-row { display: none; }
+    </style>
+  </head>
+
+  <body data-state="intro">
+
+    <!-- ============================================================
+         AR SCENE  ·  camera feed + bee swarm + image target detection
+         ============================================================ -->
+    <a-scene
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0001; filterBeta: 0.005; missTolerance: 20; warmupTolerance: 3;"
+      color-space="sRGB"
+      renderer="colorManagement: true, physicallyCorrectLights: true, antialias: true"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+      embedded
+    >
+      <a-assets>
+        <a-asset-item id="bee-model" src="./assets/bee.glb"></a-asset-item>
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <a-light type="ambient" color="#ffd9a0" intensity="0.95"></a-light>
+      <a-light type="directional" color="#fff2c8" intensity="0.6" position="0.5 1 1"></a-light>
+
+      <a-entity id="target-0" mindar-image-target="targetIndex: 0">
+        <!-- World-anchor container: bees live here, position is captured
+             from target's pose at detection so they stay 3D-positioned
+             around the can rather than following micro-jitter. -->
+        <a-entity id="bee-swarm"></a-entity>
+      </a-entity>
+    </a-scene>
+
+    <!-- WebXR capability badge (only shown if device supports immersive-ar) -->
+    <div class="xr-badge" id="xr-badge">
+      <span>✦</span>
+      <span data-i18n="xrReady">Spatial mode</span>
+    </div>
+
+    <!-- ============================================================
+         STATE 1 · INTRO / MAIN MENU
+         ============================================================ -->
+    <section id="screen-intro" class="screen is-active">
+      <div class="intro-bg" id="intro-bg"></div>
+      <div class="intro-mist" id="intro-mist"></div>
+      <div class="intro-inner">
+        <button class="intro-langbar" id="lang-toggle" aria-label="Toggle language" type="button">
+          <span class="flag" aria-hidden="true" id="lang-flag">🇬🇧</span>
+          <span id="lang-code">EN</span>
+        </button>
+
+        <div class="intro-logo" id="intro-logo" aria-hidden="true">
+          <img src="./assets/logo.png" alt="Cervecería de Zarra" />
+        </div>
+
+        <h1 class="intro-title" data-i18n="title">CERVECERIA DE ZARRA</h1>
+        <p class="intro-tagline" data-i18n="tagline">Beer, Land and People</p>
+        <p class="intro-desc" data-i18n="desc">
+          Based on the Spanish tradition of La Sobremesa –
+          time spent chatting and connecting after a meal,
+          this time your beer!
+        </p>
+
+        <div class="intro-spacer"></div>
+
+        <button class="intro-cta" id="start-btn" data-i18n="cta">Start Experience</button>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         STATE 2 · CAMERA PERMISSION
+         ============================================================ -->
+    <section id="screen-permission" class="screen">
+      <button class="perm-back" id="perm-back" aria-label="Back">‹</button>
+      <div class="perm-card">
+        <div class="perm-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 8a2 2 0 0 1 2-2h2.2l1.3-2h6.9l1.3 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8z"/>
+            <circle cx="12" cy="13" r="3.6"/>
+          </svg>
+        </div>
+        <h2 class="perm-title" data-i18n="permTitle">CAMERA ACCESS</h2>
+        <p class="perm-body" data-i18n="permBody">zarra.cervesa wants to use your camera<br/>to bring something to life</p>
+        <div class="perm-actions">
+          <button class="perm-btn perm-btn--ghost" id="perm-deny" data-i18n="permDeny">Not Now</button>
+          <button class="perm-btn perm-btn--solid" id="perm-allow" data-i18n="permAllow">Allow</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         STATE 3 · SCANNING
+         ============================================================ -->
+    <section id="screen-scan" class="screen">
+      <div class="scan-frame">
+        <i></i><i></i>
+      </div>
+      <div class="scan-hint">
+        <span data-i18n="scanFind">Find the can</span>
+        <em data-i18n="scanFrame">Frame it within</em>
+      </div>
+      <button class="dev-skip" id="dev-skip">Skip detect →</button>
+    </section>
+
+    <!-- Demo flavour picker — simulates scanning a specific beer.
+         Sets activeFlavour at scan time so the rest of the UX flow works. -->
+    <div class="scan-picker" id="scan-picker">
+      <span class="sp-label" data-i18n="pickerHint">I'm scanning…</span>
+      <button data-flavour="honey">🍯 HONEY</button>
+      <button data-flavour="cherry">🍒 CHERRY</button>
+      <button data-flavour="lemon">🍋 LEMON</button>
+    </div>
+
+    <!-- ============================================================
+         STATE 4 · BEE (AR overlay UI)
+         ============================================================ -->
+    <section id="screen-bee" class="screen">
+      <button class="bee-cta" id="bee-cta" data-i18n="beeCta" hidden style="display:none">Continue</button>
+    </section>
+    <div class="bee-hint" id="bee-hint" data-i18n="beeMsg">Catch the golden bee…</div>
+
+    <!-- ============================================================
+         STATE 5 · PROFILE
+         ============================================================ -->
+    <section id="screen-profile" class="screen">
+      <div class="profile-bg"></div>
+      <svg class="profile-dots" preserveAspectRatio="xMidYMid slice" viewBox="0 0 400 800">
+        <defs>
+          <pattern id="dotpat" x="0" y="0" width="14" height="14" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1.4" fill="#E48043"/>
+          </pattern>
+        </defs>
+        <path d="M40 540 Q120 480 220 530 T380 540 L380 760 L40 760 Z" fill="url(#dotpat)" opacity="0.7"/>
+        <path d="M0 80 Q80 60 160 100 L160 200 L0 200 Z" fill="url(#dotpat)" opacity="0.55"/>
+      </svg>
+      <span class="profile-bee b1" aria-hidden="true">🐝</span>
+      <span class="profile-bee b2" aria-hidden="true">🐝</span>
+      <button class="profile-back" id="profile-back" aria-label="Back">‹</button>
+
+      <div class="profile-card">
+        <h2 class="profile-title" data-i18n="profTitle">TELL US ABOUT<br/>YOURSELF</h2>
+
+        <div class="profile-field">
+          <label class="profile-label" for="country" data-i18n="profCountry">Select your country</label>
+          <select id="country" name="country">
+            <option value="NL" data-flag="🇳🇱">🇳🇱 The Netherlands</option>
+            <option value="ES" data-flag="🇪🇸">🇪🇸 Spain</option>
+            <option value="PT" data-flag="🇵🇹">🇵🇹 Portugal</option>
+            <option value="FR" data-flag="🇫🇷">🇫🇷 France</option>
+            <option value="DE" data-flag="🇩🇪">🇩🇪 Germany</option>
+            <option value="IT" data-flag="🇮🇹">🇮🇹 Italy</option>
+            <option value="GB" data-flag="🇬🇧">🇬🇧 United Kingdom</option>
+            <option value="IE" data-flag="🇮🇪">🇮🇪 Ireland</option>
+            <option value="BE" data-flag="🇧🇪">🇧🇪 Belgium</option>
+            <option value="US" data-flag="🇺🇸">🇺🇸 United States</option>
+            <option value="MX" data-flag="🇲🇽">🇲🇽 Mexico</option>
+            <option value="AR" data-flag="🇦🇷">🇦🇷 Argentina</option>
+            <option value="BR" data-flag="🇧🇷">🇧🇷 Brazil</option>
+            <option value="JP" data-flag="🇯🇵">🇯🇵 Japan</option>
+            <option value="AU" data-flag="🇦🇺">🇦🇺 Australia</option>
+          </select>
+          <svg class="caret" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+
+        <div class="profile-field">
+          <label class="profile-label" for="name" data-i18n="profName">Your name</label>
+          <input id="name" name="name" type="text" placeholder="Sara" autocomplete="given-name" />
+        </div>
+      </div>
+
+      <button class="profile-continue" id="profile-continue" data-i18n="profContinue" disabled>Continue</button>
+    </section>
+
+    <!-- ============================================================
+         STATE 6 · MAP (Leave Your Trace)
+         ============================================================ -->
+    <section id="screen-map" class="screen">
+      <button class="map-back" id="map-back" aria-label="Restart">↺</button>
+
+      <!-- Flavour strip is built dynamically by renderFlavourStrip() -->
+      <div class="flavor-strip" id="flavor-strip"></div>
+
+      <div class="map-wrap" id="map-wrap">
+        <div class="map-stage" id="map-stage">
+          <img class="map-img" src="./assets/world-map.png" alt="" draggable="false" />
+          <!-- Traces + here-pin injected by JS, positioned in % of this stage -->
+          <div id="map-traces"></div>
+        </div>
+
+        <!-- The single popup bubble (re-used for whichever pin is tapped) -->
+        <div class="trace-bubble" id="trace-bubble" role="dialog" aria-modal="false">
+          <div class="bub-icon" id="bub-icon">🍒</div>
+          <button class="bub-close" id="bub-close" aria-label="Close">✕</button>
+          <p class="bub-quote" id="bub-quote"></p>
+          <span class="bub-meta">
+            <span>A trace from</span>
+            <span class="who" id="bub-who"></span>
+            <span>📍</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="map-zoom" id="map-zoom">
+        <button id="zoom-in" aria-label="Zoom in" type="button">+</button>
+        <button id="zoom-out" aria-label="Zoom out" type="button">−</button>
+      </div>
+
+      <div class="trace-panel">
+        <div class="trace-bee-badge" aria-hidden="true">🐝</div>
+        <h3 class="trace-title" data-i18n="traceTitle">LEAVE YOUR TRACE…</h3>
+        <div class="trace-input-row">
+          <input id="trace-input" type="text" data-i18n-placeholder="tracePlaceholder" placeholder="type here …" maxlength="120" />
+          <button class="trace-send" id="trace-send" data-i18n="traceSend" disabled>Send</button>
+        </div>
+        <button class="scan-again-btn" id="scan-again-btn" data-i18n="scanAgain">Scan another beer</button>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         JOIN THE COMMUNITY  (overlay after first trace)
+         ============================================================ -->
+    <div class="community-overlay" id="community-overlay" hidden>
+      <div class="community-card">
+        <button class="community-close" id="community-close" aria-label="Close">✕</button>
+        <div class="community-badge">🐝</div>
+        <h3 class="community-title" data-i18n="commTitle">JOIN THE COMMUNITY</h3>
+        <p class="community-body" data-i18n="commBody">
+          Be the first to taste new flavors, hear stories from the brewery,
+          and meet other people who left a trace.
+        </p>
+        <div class="community-actions">
+          <button class="community-btn community-btn--solid" id="community-join" data-i18n="commJoin">Join</button>
+          <button class="community-btn community-btn--ghost" id="community-later" data-i18n="commLater">Maybe later</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" data-i18n="toast">Your trace is on the map ✦</div>
+    <button class="restart-btn" id="restart-btn" title="Restart">↺</button>
+
+    <script>
+      /* ============================================================
+         A-FRAME COMPONENTS  (registered before scene initialises)
+         ============================================================ */
+
+      /* free-fly: Lissajous screen-space motion, parented to the camera */
+      AFRAME.registerComponent('free-fly', {
+        schema: {
+          centerX: {type:'number', default:0},
+          centerY: {type:'number', default:0},
+          centerZ: {type:'number', default:-1.3},
+          ampX:    {type:'number', default:0.5},
+          ampY:    {type:'number', default:0.3},
+          ampZ:    {type:'number', default:0.15},
+          speedX:  {type:'number', default:0.6},
+          speedY:  {type:'number', default:0.8},
+          speedZ:  {type:'number', default:0.4},
+          phaseX:  {type:'number', default:0},
+          phaseY:  {type:'number', default:0},
+          phaseZ:  {type:'number', default:0},
+        },
+        init() { this.t = Math.random() * 8; },
+        tick(_, dt) {
+          this.t += dt / 1000;
+          const d = this.data, t = this.t;
+          const x = d.centerX + Math.sin(t * d.speedX + d.phaseX) * d.ampX;
+          const y = d.centerY + Math.sin(t * d.speedY + d.phaseY) * d.ampY;
+          const z = d.centerZ + Math.sin(t * d.speedZ + d.phaseZ) * d.ampZ;
+          const obj = this.el.object3D;
+          const dx = x - obj.position.x, dz = z - obj.position.z;
+          if (Math.abs(dx) > 1e-5 || Math.abs(dz) > 1e-5) {
+            obj.rotation.y = Math.atan2(dx, dz);
+          }
+          obj.position.set(x, y, z);
+        },
+      });
+
+      /* emoji-sprite: flat 2D plane with an emoji drawn on a canvas,
+         always facing the camera (billboard), renders above the AR bg. */
+      AFRAME.registerComponent('emoji-sprite', {
+        schema: {
+          emoji: { type: 'string', default: '🐝' },
+          size:  { type: 'number', default: 0.12 },
+          gold:  { type: 'boolean', default: false },
+        },
+        init() {
+          const d = this.data;
+          const c = document.createElement('canvas');
+          c.width = 128; c.height = 128;
+          const ctx = c.getContext('2d');
+          if (d.gold) { ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 28; }
+          ctx.font = '80px serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(d.emoji, 64, 72);
+          const tex = new THREE.CanvasTexture(c);
+          const mat = new THREE.MeshBasicMaterial({
+            map: tex, transparent: true, depthTest: false, side: THREE.DoubleSide,
+          });
+          const geo = new THREE.PlaneGeometry(d.size, d.size);
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.renderOrder = 999;
+          this.el.setObject3D('mesh', mesh);
+        },
+        tick() {
+          // Billboard — always face the active camera
+          const cam = this.el.sceneEl.camera;
+          if (cam) this.el.object3D.quaternion.copy(cam.quaternion);
+        },
+      });
+
+      /* gold-tint: turns every mesh gold AND disables depth-test so it
+         always renders above the MindAR camera background plane.         */
+      AFRAME.registerComponent('gold-tint', {
+        init() {
+          this.el.addEventListener('model-loaded', () => {
+            this.el.object3D.traverse((node) => {
+              if (!node.isMesh) return;
+              const mat = node.material.clone();
+              mat.color = new THREE.Color('#f6c233');
+              if (mat.emissive)               mat.emissive.set('#7a5500');
+              if ('emissiveIntensity' in mat) mat.emissiveIntensity = 0.8;
+              if ('metalness' in mat)         mat.metalness  = 0.85;
+              if ('roughness' in mat)         mat.roughness  = 0.25;
+              mat.depthTest = false;
+              mat.needsUpdate = true;
+              node.material = mat;
+              node.renderOrder = 999;
+            });
+          });
+        },
+      });
+
+      /* ============================================================
+         STATE
+         ============================================================ */
+      const STATES = ['intro', 'permission', 'scan', 'bee', 'profile', 'map'];
+      let state = 'intro';
+      const body = document.body;
+
+      /* ============================================================
+         FLAVOUR SYSTEM
+         ----------------------------------------------------------
+         activeFlavour          → flavour of the most recently scanned beer
+         unlockedFlavours       → Set of flavours fully unlocked (scanned + trace submitted)
+         submittedTraces        → { honey: true, cherry: false, ... }
+         hasProfile             → first run vs. subsequent scans
+         ============================================================ */
+      const FLAVOURS = {
+        honey:  { id: 'honey',  emoji: '🍯', label: 'HONEY'  },
+        cherry: { id: 'cherry', emoji: '🍒', label: 'CHERRY' },
+        lemon:  { id: 'lemon',  emoji: '🍋', label: 'LEMON'  },
+      };
+      const FLAVOUR_ORDER = ['honey', 'cherry', 'lemon'];
+
+      let activeFlavour = null;
+      let unlockedFlavours = new Set();
+      let submittedTraces = {};
+      let hasProfile = false;
+      let activeFilter = null;          // which flavour the map is filtered to (post-submit)
+
+      function loadFlavourState() {
+        try {
+          const s = JSON.parse(localStorage.getItem('zarra:flavours') || 'null');
+          if (s) {
+            unlockedFlavours = new Set(s.unlocked || []);
+            submittedTraces  = s.submitted || {};
+          }
+        } catch (_) {}
+        try {
+          hasProfile = !!JSON.parse(localStorage.getItem('zarra:profile') || 'null');
+        } catch (_) {}
+      }
+      function saveFlavourState() {
+        localStorage.setItem('zarra:flavours', JSON.stringify({
+          unlocked:  [...unlockedFlavours],
+          submitted: submittedTraces,
+        }));
+      }
+      loadFlavourState();
+      const scene = document.querySelector('a-scene');
+      const target0  = document.getElementById('target-0');
+      const beeSwarm = document.getElementById('bee-swarm');
+      const xrBadge  = document.getElementById('xr-badge');
+
+      function haptic(p) { try { navigator.vibrate && navigator.vibrate(p || [10]); } catch(_) {} }
+
+      function goTo(next) {
+        if (next === state) return;
+        document.querySelectorAll('.screen').forEach((s) => s.classList.remove('is-active'));
+        document.getElementById('screen-' + next).classList.add('is-active');
+        body.dataset.state = next;
+        state = next;
+        document.getElementById('bee-hint').classList.toggle('is-on', next === 'bee');
+        if (xrBadge) xrBadge.classList.toggle('is-on', next === 'bee' && webxrSupported);
+        if (next === 'map') renderMap();
+        if (next !== 'bee' && next !== 'scan') clearSwarm();
+      }
+
+      /* ============================================================
+         I18N — EN / ES toggle
+         ============================================================ */
+      const I18N = {
+        en: {
+          title: 'CERVECERIA DE ZARRA',
+          tagline: 'Beer, Land and People',
+          desc: 'Based on the Spanish tradition of La Sobremesa – time spent chatting and connecting after a meal, this time your beer!',
+          cta: 'Start Experience',
+          permTitle: 'CAMERA ACCESS',
+          permBody: 'zarra.cervesa wants to use your camera<br/>to bring something to life',
+          permDeny: 'Not Now',
+          permAllow: 'Allow',
+          scanFind: 'Find the can',
+          scanFrame: 'Frame it within',
+          beeMsg: 'Catch the golden bee…',
+          beeCta: 'Continue',
+          xrReady: 'Spatial mode',
+          profTitle: 'TELL US ABOUT<br/>YOURSELF',
+          profCountry: 'Select your country',
+          profName: 'Your name',
+          profContinue: 'Continue',
+          flavorOrange: 'ALBA · Orange Wheat',
+          locked: 'Locked',
+          traceTitle: 'LEAVE YOUR TRACE…',
+          tracePlaceholder: 'type here …',
+          traceSend: 'Send',
+          toast: 'Your trace is on the map ✦',
+          commTitle: 'JOIN THE COMMUNITY',
+          commBody: 'Be the first to taste new flavors, hear stories from the brewery, and meet other people who left a trace.',
+          commJoin: 'Join',
+          commLater: 'Maybe later',
+          pickerHint: "I'm scanning…",
+          scanAgain: 'Scan another beer',
+          mNotSoFastTitle: 'NOT SO FAST…',
+          mNotSoFastBody:  'Leave your own trace to find out what others had to say',
+          mThanksTitle:    'THANK YOU FOR LEAVING THE TRACE',
+          mThanksBody:     'Your trace is now part of the {flavour} community.',
+          mScanNewTitle:   'SCAN A NEW BEER',
+          mScanNewBody:    'To unlock new flavoured traces',
+          mScanNewCta:     'Back to AR',
+          mOkay:           'Got it',
+        },
+        es: {
+          title: 'CERVECERIA DE ZARRA',
+          tagline: 'Cerveza, Tierra y Gente',
+          desc: 'Basado en la tradición española de La Sobremesa – tiempo dedicado a charlar y conectar después de una comida, ¡esta vez con tu cerveza!',
+          cta: 'Comenzar Experiencia',
+          permTitle: 'ACCESO A LA CÁMARA',
+          permBody: 'zarra.cervesa quiere usar tu cámara<br/>para dar vida a algo',
+          permDeny: 'Ahora No',
+          permAllow: 'Permitir',
+          scanFind: 'Encuentra la lata',
+          scanFrame: 'Encuádrala dentro',
+          beeMsg: 'Atrapa la abeja dorada…',
+          beeCta: 'Continuar',
+          xrReady: 'Modo espacial',
+          profTitle: 'CUÉNTANOS<br/>SOBRE TI',
+          profCountry: 'Selecciona tu país',
+          profName: 'Tu nombre',
+          profContinue: 'Continuar',
+          flavorOrange: 'ALBA · Trigo Naranja',
+          locked: 'Bloqueado',
+          traceTitle: 'DEJA TU HUELLA…',
+          tracePlaceholder: 'escribe aquí…',
+          traceSend: 'Enviar',
+          toast: 'Tu huella está en el mapa ✦',
+          commTitle: 'ÚNETE A LA COMUNIDAD',
+          commBody: 'Sé el primero en probar nuevos sabores, escuchar historias de la cervecería y conocer a otras personas que dejaron una huella.',
+          commJoin: 'Unirme',
+          commLater: 'Quizás más tarde',
+          pickerHint: 'Estoy escaneando…',
+          scanAgain: 'Escanear otra cerveza',
+          mNotSoFastTitle: 'ESPERA…',
+          mNotSoFastBody:  'Deja tu huella para descubrir lo que otros dijeron',
+          mThanksTitle:    'GRACIAS POR DEJAR TU HUELLA',
+          mThanksBody:     'Tu huella ya forma parte de la comunidad {flavour}.',
+          mScanNewTitle:   'ESCANEA UNA NUEVA CERVEZA',
+          mScanNewBody:    'Para desbloquear nuevas huellas de sabor',
+          mScanNewCta:     'Volver a AR',
+          mOkay:           'Entendido',
+        },
+      };
+      let lang = (localStorage.getItem('zarra:lang') || 'en');
+      function applyLang() {
+        const dict = I18N[lang] || I18N.en;
+        document.querySelectorAll('[data-i18n]').forEach((el) => {
+          const k = el.getAttribute('data-i18n');
+          if (dict[k] !== undefined) el.innerHTML = dict[k];
+        });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+          const k = el.getAttribute('data-i18n-placeholder');
+          if (dict[k] !== undefined) el.setAttribute('placeholder', dict[k]);
+        });
+        document.getElementById('lang-code').textContent = lang.toUpperCase();
+        document.getElementById('lang-flag').textContent = lang === 'es' ? '🇪🇸' : '🇬🇧';
+        document.documentElement.lang = lang;
+      }
+      document.getElementById('lang-toggle').addEventListener('click', () => {
+        lang = (lang === 'en') ? 'es' : 'en';
+        localStorage.setItem('zarra:lang', lang);
+        applyLang();
+        sfx('click');
+        haptic([20]);
+      });
+      applyLang();
+
+      /* ============================================================
+         PARALLAX — gyroscope ONLY (tilt the phone to move).
+         Logo stays still. Background + mist drift smoothly.
+         iOS 13+ requires explicit permission, requested on first tap.
+         ============================================================ */
+      const introBg   = document.getElementById('intro-bg');
+      const introMist = document.getElementById('intro-mist');
+      let parallaxTarget = { x: 0, y: 0 };
+      let parallaxCurrent = { x: 0, y: 0 };
+
+      function setParallaxTarget(nx, ny) {
+        parallaxTarget.x = Math.max(-1, Math.min(1, nx));
+        parallaxTarget.y = Math.max(-1, Math.min(1, ny));
+      }
+
+      function tickParallax() {
+        // Smooth easing toward gyro target (slower lerp = smoother glide)
+        parallaxCurrent.x += (parallaxTarget.x - parallaxCurrent.x) * 0.06;
+        parallaxCurrent.y += (parallaxTarget.y - parallaxCurrent.y) * 0.06;
+        const nx = parallaxCurrent.x;
+        const ny = parallaxCurrent.y;
+        if (introBg) {
+          introBg.style.transform   = `translate3d(${nx * 22}px, ${ny * 16}px, 0) scale(1.08)`;
+          introMist.style.transform = `translate3d(${nx * 36}px, ${ny * 24}px, 0)`;
+        }
+        requestAnimationFrame(tickParallax);
+      }
+      requestAnimationFrame(tickParallax);
+
+      function onOrientation(e) {
+        if (state !== 'intro') return;
+        // gamma = left/right tilt (-90..90), beta = front/back tilt (-180..180)
+        const nx = (e.gamma || 0) / 30;
+        const ny = ((e.beta || 0) - 45) / 45; // center around 45° (natural hold angle)
+        setParallaxTarget(nx, ny);
+      }
+      function enableGyro() {
+        const DO = window.DeviceOrientationEvent;
+        if (DO && typeof DO.requestPermission === 'function') {
+          DO.requestPermission()
+            .then((res) => {
+              if (res === 'granted') window.addEventListener('deviceorientation', onOrientation);
+            })
+            .catch(() => {});
+        } else if (DO) {
+          window.addEventListener('deviceorientation', onOrientation);
+        }
+      }
+      // Silent attempt at load (Android / non-iOS), retry on first user gesture
+      enableGyro();
+
+      /* ============================================================
+         SFX — WebAudio-generated tones (no asset files needed)
+         ============================================================ */
+      let audioCtx = null;
+      function ensureAudio() {
+        if (audioCtx) return audioCtx;
+        try {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (_) { audioCtx = null; }
+        return audioCtx;
+      }
+      // Shared master gain — lets us tame overall volume in one place
+      let masterGain = null;
+      function tone({ freq = 440, dur = 0.22, type = 'sine', gain = 0.12, sweep = 0, attack = 0.018, release = null } = {}) {
+        const ctx = ensureAudio();
+        if (!ctx) return;
+        if (!masterGain) {
+          masterGain = ctx.createGain();
+          masterGain.gain.value = 0.75;
+          masterGain.connect(ctx.destination);
+        }
+        const t0 = ctx.currentTime;
+        const rel = release == null ? Math.max(0.05, dur * 0.6) : release;
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, t0);
+        if (sweep) osc.frequency.exponentialRampToValueAtTime(Math.max(40, freq + sweep), t0 + dur);
+        g.gain.setValueAtTime(0.0001, t0);
+        // Smooth attack → sustain → exponential release (no clicks/pops)
+        g.gain.linearRampToValueAtTime(gain, t0 + attack);
+        g.gain.setValueAtTime(gain, t0 + dur - rel);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        osc.connect(g).connect(masterGain);
+        osc.start(t0);
+        osc.stop(t0 + dur + 0.03);
+      }
+      function startBuzz() { /* no-op */ }
+      function stopBuzz()  { /* no-op */ }
+      function sfx(name) {
+        switch (name) {
+          case 'click':   return tone({ freq: 620, dur: 0.10, type: 'sine', gain: 0.08, attack: 0.012 });
+          case 'success': tone({ freq: 587.33, dur: 0.18, type: 'sine', gain: 0.10 }); // D5
+                          setTimeout(() => tone({ freq: 783.99, dur: 0.26, type: 'sine', gain: 0.10 }), 130); // G5
+                          return;
+          case 'gold':    tone({ freq: 783.99, dur: 0.16, type: 'sine', gain: 0.11 });  // G5
+                          setTimeout(() => tone({ freq: 987.77, dur: 0.16, type: 'sine', gain: 0.11 }), 110); // B5
+                          setTimeout(() => tone({ freq: 1174.66, dur: 0.32, type: 'sine', gain: 0.11 }), 220); // D6
+                          return;
+          case 'send':    return tone({ freq: 660, dur: 0.26, type: 'sine', gain: 0.10, sweep: 180 });
+          case 'pop':     return tone({ freq: 440, dur: 0.14, type: 'sine', gain: 0.09, sweep: 160 });
+        }
+      }
+      // Soft "click" sound on any UI button — no ReferenceError
+      document.addEventListener('click', (e) => {
+        if (e.target.closest('button, .intro-cta, .trace-pin, .flavor-chip')) {
+          sfx('click');
+        }
+      }, true);
+
+      /* ============================================================
+         MIND-AR START — happens after user taps Allow
+         ============================================================ */
+      async function startMindAR() {
+        try {
+          const sys = scene.systems['mindar-image-system'];
+          if (sys && sys.start) await sys.start();
+        } catch (e) {
+          console.error('mindar start failed:', e);
+          alert('Could not start the camera. Please allow camera access and reload.');
+        }
+      }
+      async function stopMindAR() {
+        try {
+          const sys = scene.systems['mindar-image-system'];
+          if (sys && sys.stop) await sys.stop();
+        } catch (_) {}
+      }
+
+      /* ============================================================
+         INTRO  →  PERMISSION
+         ============================================================ */
+      document.getElementById('start-btn').addEventListener('click', () => {
+        haptic([60]);
+        enableGyro();        // user gesture → satisfies iOS permission prompt
+        ensureAudio();
+        goTo('permission');
+      });
+
+      document.getElementById('perm-back').addEventListener('click', () => {
+        haptic([30]);
+        goTo('intro');
+      });
+      document.getElementById('perm-deny').addEventListener('click', () => {
+        haptic([30]);
+        goTo('intro');
+      });
+      document.getElementById('perm-allow').addEventListener('click', async () => {
+        haptic([80]);
+        goTo('scan');
+        const start = () => startMindAR();
+        if (scene.hasLoaded) await start();
+        else scene.addEventListener('loaded', start, { once: true });
+      });
+
+      /* ---------- Scan-screen flavour picker (demo control) ---------
+         The image target is a single can, so for demo purposes the user
+         picks which flavour they are "scanning". This sets activeFlavour
+         at the moment of detection so the rest of the flow is real. */
+      const scanPicker = document.getElementById('scan-picker');
+      let pickedFlavour = 'honey';
+      function updatePickerUI() {
+        scanPicker.querySelectorAll('button').forEach((b) => {
+          b.classList.toggle('is-selected', b.dataset.flavour === pickedFlavour);
+        });
+      }
+      scanPicker.querySelectorAll('button').forEach((b) => {
+        b.addEventListener('click', () => {
+          pickedFlavour = b.dataset.flavour;
+          updatePickerUI();
+          haptic([15]);
+        });
+      });
+      updatePickerUI();
+
+      /* ============================================================
+         SCAN → BEE (target detection)
+         Bees float in camera space — finding the can triggers the swarm.
+         renderOrder:999 + depthTest:false makes them always visible above
+         the MindAR camera background plane in the same WebGL context.
+         ============================================================ */
+      let swarmSpawned  = false;
+      let goldBeeEntity = null;   // captured in spawnSwarm; used by screen-space touch hit test
+      let swarmAnchored = false;  // becomes true after the first lock to world space
+
+      /* ----------- WebXR capability probe -----------------------
+       * MindAR drives the active AR session (it owns the camera + render
+       * loop). WebXR ImmersiveAR cannot run concurrently with MindAR, so
+       * we only probe for capability here — the badge surfaces to the
+       * user that their device supports spatial-anchor-class tracking
+       * for future enhancements (hit-test, anchors, light-estimation).
+       * ---------------------------------------------------------- */
+      let webxrSupported = false;
+      let webxrFeatures = { hitTest: false, anchors: false, lightEstimation: false };
+      (async () => {
+        if (!('xr' in navigator)) return;
+        try {
+          const ok = await navigator.xr.isSessionSupported('immersive-ar');
+          webxrSupported = !!ok;
+          if (webxrSupported) {
+            // Optional-features probe — non-blocking
+            const probes = ['hit-test', 'anchors', 'light-estimation'];
+            for (const f of probes) {
+              try {
+                const s = await navigator.xr.isSessionSupported('immersive-ar', { optionalFeatures: [f] });
+                webxrFeatures[f.replace(/-([a-z])/g, (_,c) => c.toUpperCase())] = !!s;
+              } catch(_) {}
+            }
+            console.log('[WebXR] immersive-ar supported. Features:', webxrFeatures);
+          }
+        } catch(_) {}
+      })();
+
+      target0.addEventListener('targetFound', () => {
+        if (state === 'scan') {
+          // Commit the demo-picked flavour as the active one for this scan
+          activeFlavour = pickedFlavour;
+          haptic([80, 60, 140]);
+          spawnSwarm();
+          goTo('bee');
+        }
+        // ONE-TIME WORLD-LOCK (THREE-ONLY)
+        // ----------------------------------------------------------
+        // The first time the can is detected we move #bee-swarm OUT
+        // of #target-0 in the THREE.js scene graph — but NOT in the
+        // DOM. Object3D.attach() preserves the world transform
+        // mathematically, so the swarm visually stays exactly where
+        // it was at the lock moment. The DOM stays untouched, which
+        // means A-Frame's mutation observer never fires, components
+        // are never torn down and rebuilt, and the animation-mixer's
+        // wing-flap clip + free-fly Lissajous tick keep running.
+        // MindAR continues to track and update #target-0 normally,
+        // but those updates no longer affect the bees because
+        // they're no longer in target-0's transform chain.
+        if (!swarmAnchored) {
+          swarmAnchored = true;
+          requestAnimationFrame(lockSwarmInWorld);
+        }
+      });
+
+      /* Pure-THREE reparent: lift #bee-swarm out of #target-0 and
+         into the scene root, preserving world transform via attach().
+         No DOM mutation — animation-mixer + free-fly keep ticking. */
+      function lockSwarmInWorld() {
+        if (!beeSwarm || !beeSwarm.object3D) return;
+        const swarmObj = beeSwarm.object3D;
+        if (swarmObj.parent === scene.object3D) return; // already locked
+
+        // attach() removes from current parent, adds to new parent,
+        // and computes the new local transform such that world stays.
+        scene.object3D.attach(swarmObj);
+
+        const p = swarmObj.position;
+        console.log('[bee-swarm] world-locked at',
+                    p.x.toFixed(3), p.y.toFixed(3), p.z.toFixed(3),
+                    '(THREE only; DOM untouched)');
+      }
+
+      function clearSwarm() {
+        swarmSpawned  = false;
+        swarmAnchored = false;
+        goldBeeEntity = null;
+        document.getElementById('bee-cta').hidden = true;
+        while (beeSwarm.firstChild) beeSwarm.removeChild(beeSwarm.firstChild);
+        // Undo the THREE-only reparent so the next session starts in
+        // the original target-tracked configuration. We use add() (not
+        // attach()) so the new local transform is what we set below,
+        // not whatever world-preserving math attach() would compute.
+        const targetObj = target0 && target0.object3D;
+        if (targetObj && beeSwarm.object3D.parent !== targetObj) {
+          targetObj.add(beeSwarm.object3D);
+          beeSwarm.object3D.position.set(0, 0, 0);
+          beeSwarm.object3D.quaternion.identity();
+          beeSwarm.object3D.scale.set(1, 1, 1);
+        }
+      }
+
+      function spawnSwarm() {
+        if (swarmSpawned) return;
+        swarmSpawned = true;
+        sfx('pop');
+
+        // 3D gltf bees in target-local coordinate space.
+        // Centred at (0,0,0) = the can's image target centre.
+        // amp_* values are in MindAR-space units (≈ target image width).
+        // Scales are HALVED vs the original spec (50% smaller bees) and
+        // amplitudes are roughly doubled so the swarm visibly roams across
+        // the screen instead of clustering tight around the lock point.
+        const configs = [
+          { scale:0.0225, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.10, ampY:0.70, ampZ:0.36, speedX:0.55, speedY:0.70, speedZ:0.35, phaseX:0.0, phaseY:1.2, phaseZ:0.5 },
+          { scale:0.0175, gold:false, centerX:0, centerY:0, centerZ:0, ampX:0.95, ampY:0.65, ampZ:0.40, speedX:0.85, speedY:1.00, speedZ:0.50, phaseX:1.4, phaseY:0.3, phaseZ:2.1 },
+          { scale:0.0150, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.30, ampY:0.80, ampZ:0.44, speedX:1.10, speedY:0.55, speedZ:0.70, phaseX:2.5, phaseY:1.8, phaseZ:0.1 },
+          { scale:0.0200, gold:false, centerX:0, centerY:0, centerZ:0, ampX:0.80, ampY:0.60, ampZ:0.28, speedX:0.45, speedY:0.90, speedZ:0.25, phaseX:3.2, phaseY:2.4, phaseZ:1.6 },
+          { scale:0.0160, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.15, ampY:0.78, ampZ:0.40, speedX:0.75, speedY:0.60, speedZ:0.55, phaseX:0.7, phaseY:3.0, phaseZ:2.7 },
+          // GOLD — slightly tighter orbit so it remains catchable
+          { scale:0.0300, gold:true,  centerX:0, centerY:0, centerZ:0, ampX:0.70, ampY:0.50, ampZ:0.28, speedX:0.50, speedY:0.70, speedZ:0.40, phaseX:1.0, phaseY:0.0, phaseZ:0.0 },
+        ];
+
+        configs.forEach((c) => {
+          const ent = document.createElement('a-entity');
+          ent.classList.add('bee');
+          ent.setAttribute('gltf-model', '#bee-model');
+          ent.setAttribute('scale', `${c.scale} ${c.scale} ${c.scale}`);
+          // Play the wing-flap clip embedded in bee.glb on loop. `clip: *`
+          // picks the first available animation regardless of its name.
+          ent.setAttribute('animation-mixer', 'clip: *; loop: repeat; timeScale: 1.4');
+          ent.setAttribute('free-fly',
+            `centerX:${c.centerX}; centerY:${c.centerY}; centerZ:${c.centerZ}; ` +
+            `ampX:${c.ampX}; ampY:${c.ampY}; ampZ:${c.ampZ}; ` +
+            `speedX:${c.speedX}; speedY:${c.speedY}; speedZ:${c.speedZ}; ` +
+            `phaseX:${c.phaseX}; phaseY:${c.phaseY}; phaseZ:${c.phaseZ}`
+          );
+          // Force bees to render above the MindAR camera background plane
+          ent.addEventListener('model-loaded', () => {
+            ent.object3D.traverse((node) => {
+              if (!node.isMesh) return;
+              node.renderOrder = 999;
+              if (!c.gold) {
+                node.material = node.material.clone();
+                node.material.depthTest = false;
+                node.material.needsUpdate = true;
+              }
+            });
+          });
+          if (c.gold) {
+            goldBeeEntity = ent;
+            ent.setAttribute('gold-tint', '');
+          }
+          beeSwarm.appendChild(ent);
+        });
+      }
+
+      async function onGoldBeeClicked() {
+        if (state !== 'bee') return;
+        haptic([40, 30, 80]);
+        sfx('gold');
+        await stopMindAR();
+        clearSwarm();
+        // First time → profile; subsequent scans → straight to map with the
+        // new activeFlavour. Profile fields are remembered in localStorage.
+        goTo(hasProfile ? 'map' : 'profile');
+      }
+
+      /* ============================================================
+         GOLD-BEE TOUCH HIT TEST
+         ----------------------------------------------------------
+         MindAR intercepts pointer events before A-Frame's raycaster
+         sees them, so on mobile the cursor click path never fires.
+         Instead we listen for `touchend` directly on the document,
+         project the gold bee's world position to screen pixels,
+         and treat any tap within a generous radius as a hit. This
+         is exactly the approach used in the proven working prototype.
+         ============================================================ */
+      const _tmpVec = new THREE.Vector3();
+      document.addEventListener('touchend', (e) => {
+        if (state !== 'bee' || !goldBeeEntity) return;
+        const cam = scene.camera;
+        if (!cam) return;
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+        // Project gold bee world position → NDC → screen pixels
+        goldBeeEntity.object3D.getWorldPosition(_tmpVec);
+        _tmpVec.project(cam);
+        const sx = ( _tmpVec.x * 0.5 + 0.5) * window.innerWidth;
+        const sy = (-_tmpVec.y * 0.5 + 0.5) * window.innerHeight;
+        const dx = touch.clientX - sx;
+        const dy = touch.clientY - sy;
+        // ~22% of the shorter viewport edge — thumb-sized hit area
+        const hitRadius = Math.min(window.innerWidth, window.innerHeight) * 0.22;
+        if (Math.sqrt(dx*dx + dy*dy) < hitRadius) {
+          onGoldBeeClicked();
+        }
+      }, { passive: true });
+
+      document.getElementById('bee-cta').addEventListener('click', async () => {
+        haptic([60]);
+        await stopMindAR();
+        clearSwarm();
+        goTo(hasProfile ? 'map' : 'profile');
+      });
+
+      /* ============================================================
+         PROFILE
+         ============================================================ */
+      const nameInput = document.getElementById('name');
+      const countrySel = document.getElementById('country');
+      const profileContinue = document.getElementById('profile-continue');
+
+      // Prefill from previous session
+      try {
+        const saved = JSON.parse(localStorage.getItem('zarra:profile') || 'null');
+        if (saved) {
+          nameInput.value = saved.name || '';
+          if (saved.country) countrySel.value = saved.country;
+        }
+      } catch (_) {}
+
+      function updateContinueState() {
+        profileContinue.disabled = !nameInput.value.trim();
+      }
+      nameInput.addEventListener('input', updateContinueState);
+      updateContinueState();
+
+      document.getElementById('profile-back').addEventListener('click', () => {
+        goTo('bee');
+      });
+
+      profileContinue.addEventListener('click', () => {
+        if (profileContinue.disabled) return;
+        haptic([60]);
+        const selectedOpt = countrySel.options[countrySel.selectedIndex];
+        const profile = {
+          name: nameInput.value.trim(),
+          country: countrySel.value,
+          countryLabel: selectedOpt.textContent.replace(/^[^A-Za-z]+/, '').trim(),
+          flag: selectedOpt.dataset.flag || '🌍',
+        };
+        localStorage.setItem('zarra:profile', JSON.stringify(profile));
+        hasProfile = true;
+        // Kick off geolocation (async, optional)
+        requestGeolocation(profile);
+        goTo('map');
+      });
+
+      /* ============================================================
+         GEOLOCATION → "you are here" pin on the map
+         Falls back to profile country if denied / unavailable.
+         ============================================================ */
+      function latLngToPercent(lat, lng) {
+        const p = latLngToPct(lat, lng);
+        return {
+          x: Math.max(1, Math.min(99, p.x)),
+          y: Math.max(1, Math.min(99, p.y)),
+        };
+      }
+      function requestGeolocation(profile) {
+        const fallback = () => {
+          const cc = COUNTRY_COORDS[profile.country];
+          if (cc) myCoord = { x: cc.x, y: cc.y, source: 'country', label: cc.label };
+          else    myCoord = { x: 50, y: 50, source: 'fallback', label: 'EARTH' };
+          if (state === 'map') renderMap();
+        };
+        if (!navigator.geolocation) return fallback();
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const { latitude, longitude } = pos.coords;
+            const p = latLngToPercent(latitude, longitude);
+            myCoord = { x: p.x, y: p.y, source: 'geo', lat: latitude, lng: longitude };
+            if (state === 'map') renderMap();
+          },
+          () => fallback(),
+          { enableHighAccuracy: false, timeout: 6000, maximumAge: 5 * 60 * 1000 }
+        );
+      }
+
+      /* ============================================================
+         MAP DATA
+         Coords are stored as % of the .map-wrap container. The world
+         map image (assets/world-map.png) is a stylised non-Mercator
+         layout — coords below were eyeballed against it.
+         ============================================================ */
+      // The world-map.png is a stylised Mercator-like map with whitespace
+      // padding around the land area. These constants define the actual
+      // plot rectangle (in % of the image / stage) and the Mercator
+      // latitude bounds that map to its top & bottom edges.
+      const MAP_CALIB = {
+        xMin: 5.5,  xMax: 94.5,   // -180° → +180° longitude (linear)
+        yMin: 9.5,  yMax: 86.5,   // top/bottom of plot in image %
+        latTop:  76,              // approximate latitude at yMin (Mercator)
+        latBot: -63,              // approximate latitude at yMax (Mercator)
+      };
+      function _mercY(latDeg) {
+        // Returns Mercator y in [0, 1] where 0=top pole, 1=bottom pole.
+        const lat = Math.max(-85, Math.min(85, latDeg)) * Math.PI / 180;
+        return 0.5 - Math.asinh(Math.tan(lat)) / (2 * Math.PI);
+      }
+      const _Y_TOP = _mercY(MAP_CALIB.latTop);
+      const _Y_BOT = _mercY(MAP_CALIB.latBot);
+      function latLngToPct(lat, lng) {
+        const x = MAP_CALIB.xMin + ((lng + 180) / 360) * (MAP_CALIB.xMax - MAP_CALIB.xMin);
+        const yMerc = _mercY(lat);
+        const yNorm = (yMerc - _Y_TOP) / (_Y_BOT - _Y_TOP);
+        const y = MAP_CALIB.yMin + yNorm * (MAP_CALIB.yMax - MAP_CALIB.yMin);
+        return { x, y };
+      }
+      const COUNTRIES_LL = {
+        NL: { lat: 52.1, lng:  5.3,  label: 'NETHERLANDS' },
+        ES: { lat: 40.4, lng: -3.7,  label: 'SPAIN' },
+        PT: { lat: 39.4, lng: -8.0,  label: 'PORTUGAL' },
+        FR: { lat: 46.6, lng:  2.2,  label: 'FRANCE' },
+        DE: { lat: 51.2, lng: 10.5,  label: 'GERMANY' },
+        IT: { lat: 41.9, lng: 12.6,  label: 'ITALY' },
+        GB: { lat: 54.5, lng: -2.5,  label: 'UK' },
+        IE: { lat: 53.4, lng: -8.0,  label: 'IRELAND' },
+        BE: { lat: 50.5, lng:  4.5,  label: 'BELGIUM' },
+        US: { lat: 38.0, lng: -97.0, label: 'USA' },
+        MX: { lat: 23.6, lng: -102.5,label: 'MEXICO' },
+        AR: { lat: -34.6,lng: -58.4, label: 'ARGENTINA' },
+        BR: { lat: -14.2,lng: -51.9, label: 'BRAZIL' },
+        JP: { lat: 36.2, lng: 138.3, label: 'JAPAN' },
+        AU: { lat: -25.3,lng: 134.5, label: 'AUSTRALIA' },
+      };
+      const COUNTRY_COORDS = Object.fromEntries(
+        Object.entries(COUNTRIES_LL).map(([cc, info]) => {
+          const p = latLngToPct(info.lat, info.lng);
+          return [cc, { x: p.x, y: p.y, label: info.label }];
+        })
+      );
+
+      const _SEEDS = [
+        // HONEY traces
+        { id: 'h1', flavour:'honey', quote: 'This beer tastes like the lavender fields back home.',
+          who: 'MARIA, SPAIN',     cc: 'ES', jx:-1.4, jy: 0.6 },
+        { id: 'h2', flavour:'honey', quote: 'Sweet, slow, perfect after a long shift.',
+          who: 'JOÃO, PORTUGAL',   cc: 'PT', jx: 0.4, jy:-1.2 },
+        { id: 'h3', flavour:'honey', quote: 'Reminds me of my grandmother’s pantry.',
+          who: 'EMMA, NETHERLANDS',cc: 'NL', jx:-0.8, jy: 0.4 },
+        { id: 'h4', flavour:'honey', quote: 'I drank one watching the bees in the orchard.',
+          who: 'PIERRE, FRANCE',   cc: 'FR', jx:-1.8, jy: 0.7 },
+        { id: 'h5', flavour:'honey', quote: 'Honey beer at sunset — nothing else needed.',
+          who: 'LUCAS, ARGENTINA', cc: 'AR', jx: 1.2, jy:-0.8 },
+        // CHERRY traces
+        { id: 'c1', flavour:'cherry', quote: 'Bright like the cherries on my walk to school.',
+          who: 'GIULIA, ITALY',    cc: 'IT', jx: 1.8, jy: 0.8 },
+        { id: 'c2', flavour:'cherry', quote: 'Tart, fresh, and unexpected — love it.',
+          who: 'AKIRA, JAPAN',     cc: 'JP', jx:-1.5, jy: 0.5 },
+        { id: 'c3', flavour:'cherry', quote: 'My summer go-to from now on.',
+          who: 'SOFIA, MEXICO',    cc: 'MX', jx: 1.0, jy: 1.0 },
+        { id: 'c4', flavour:'cherry', quote: 'Shared one with my sister at the lake.',
+          who: 'LIAM, IRELAND',    cc: 'IE', jx: 0.6, jy: 0.9 },
+        { id: 'c5', flavour:'cherry', quote: 'Reminds me of the orchard near my grandparents.',
+          who: 'HANS, GERMANY',    cc: 'DE', jx:-2.2, jy:-0.6 },
+        // LEMON traces
+        { id: 'l1', flavour:'lemon', quote: 'Sharp and clean — like the Mediterranean.',
+          who: 'CARLOS, SPAIN',    cc: 'ES', jx: 1.6, jy:-1.4 },
+        { id: 'l2', flavour:'lemon', quote: 'Best beer after a long sail.',
+          who: 'BEATRIZ, BRAZIL',  cc: 'BR', jx:-1.2, jy: 1.5 },
+        { id: 'l3', flavour:'lemon', quote: 'A taste of the coast in every sip.',
+          who: 'OLIVIA, UK',       cc: 'GB', jx: 0.9, jy: 1.4 },
+        { id: 'l4', flavour:'lemon', quote: 'Bright. Cold. Honest.',
+          who: 'NOAH, USA',        cc: 'US', jx: 3.5, jy:-2.5 },
+        { id: 'l5', flavour:'lemon', quote: 'Drank one watching the surf at dawn.',
+          who: 'CHLOE, AUSTRALIA', cc: 'AU', jx: 1.2, jy:-1.8 },
+      ];
+      const SEED_TRACES = _SEEDS.map((s) => {
+        const c = COUNTRY_COORDS[s.cc] || { x: 50, y: 50 };
+        return { ...s, x: c.x + (s.jx || 0), y: c.y + (s.jy || 0) };
+      });
+
+      function getTraces() {
+        try {
+          const local = JSON.parse(localStorage.getItem('zarra:traces') || '[]');
+          return [...SEED_TRACES, ...local];
+        } catch (_) {
+          return SEED_TRACES.slice();
+        }
+      }
+      function addTrace(t) {
+        let local = [];
+        try { local = JSON.parse(localStorage.getItem('zarra:traces') || '[]'); } catch (_) {}
+        local.push(t);
+        localStorage.setItem('zarra:traces', JSON.stringify(local));
+      }
+
+      /* ============================================================
+         MAP RENDER
+         ============================================================ */
+      const tracesLayer = document.getElementById('map-traces');
+      const bubble      = document.getElementById('trace-bubble');
+      const bubIcon     = document.getElementById('bub-icon');
+      const bubQuote    = document.getElementById('bub-quote');
+      const bubWho      = document.getElementById('bub-who');
+
+      // "You are here" coordinates derived from geolocation OR profile country
+      let myCoord = null;
+
+      function renderMap() {
+        tracesLayer.innerHTML = '';
+        renderFlavourStrip();
+        // Reflect submission state on body so CSS can flip the trace panel
+        body.dataset.submitted = (activeFlavour && submittedTraces[activeFlavour]) ? '1' : '0';
+
+        const all = getTraces();
+        const hasSubmittedActive = activeFlavour && !!submittedTraces[activeFlavour];
+
+        // PRE-SUBMIT  →  one teaser pin of activeFlavour + locked decoys
+        // POST-SUBMIT →  all traces for flavours in unlockedFlavours, filtered
+        //               by activeFilter (defaults to activeFlavour).
+        let visibleSet, teaserId = null;
+        if (!hasSubmittedActive) {
+          const teaserCandidates = all.filter((t) => t.flavour === activeFlavour && !t.mine);
+          const teaser = teaserCandidates[0];
+          if (teaser) teaserId = teaser.id;
+          visibleSet = new Set(teaser ? [teaser.id] : []);
+        } else {
+          const filter = activeFilter || activeFlavour;
+          visibleSet = new Set(
+            all.filter((t) => t.flavour === filter && unlockedFlavours.has(t.flavour))
+               .map((t) => t.id)
+          );
+        }
+
+        // Decide which pins to draw. Pre-submit we still want some locked
+        // decoy pins around the map (so the user sees there is content),
+        // but they are not clickable beyond the "NOT SO FAST" modal.
+        const drawList = hasSubmittedActive
+          ? all.filter((t) => visibleSet.has(t.id) || t.mine && t.flavour === (activeFilter || activeFlavour))
+          : all.filter((t, i) => visibleSet.has(t.id) || (i % 2 === 0));
+
+        drawList.forEach((t) => {
+          const pin = document.createElement('button');
+          const isVisible = visibleSet.has(t.id) || (t.mine && hasSubmittedActive);
+          const locked = !isVisible;
+          pin.className = 'trace-pin' + (t.mine ? ' is-mine' : '') + (locked ? ' locked' : '');
+          pin.textContent = locked ? '🔒' : (FLAVOURS[t.flavour]?.emoji || '✦');
+          pin.style.left = t.x + '%';
+          pin.style.top  = t.y + '%';
+          pin.dataset.locked = locked ? '1' : '0';
+          pin.dataset.id = t.id || '';
+          pin.setAttribute('aria-label', 'Trace from ' + t.who);
+          pin.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (locked) {
+              haptic([20]);
+              // Pre-submit: any locked pin tap → "NOT SO FAST…"
+              // Post-submit: locked pin means a different flavour → "SCAN A NEW BEER"
+              if (!hasSubmittedActive) {
+                showModal({
+                  icon: '🐝',
+                  title: I18N[lang].mNotSoFastTitle,
+                  body:  I18N[lang].mNotSoFastBody,
+                  primary: I18N[lang].mOkay,
+                });
+              } else {
+                showModal({
+                  icon: '🍺',
+                  title: I18N[lang].mScanNewTitle,
+                  body:  I18N[lang].mScanNewBody,
+                  primary: I18N[lang].mScanNewCta,
+                  onPrimary: backToAR,
+                });
+              }
+              return;
+            }
+            openBubble(t, pin);
+          });
+          tracesLayer.appendChild(pin);
+        });
+
+        const stage = document.getElementById('map-stage');
+        const oldHere = stage.querySelector('.here-pin');
+        if (oldHere) oldHere.remove();
+        if (myCoord) {
+          const here = document.createElement('div');
+          here.className = 'here-pin';
+          here.style.left = myCoord.x + '%';
+          here.style.top  = myCoord.y + '%';
+          stage.appendChild(here);
+        }
+
+        // Auto-scroll the wrap so the user's location is centred horizontally
+        centerOnUser();
+      }
+
+      /* ----------------------------------------------------------
+         Flavour strip — top of map. Renders one chip per flavour.
+         States:
+           • active   — currently selected filter (post-submit)
+           • unlocked — clickable filter (post-submit, scanned+submitted)
+           • locked   — tapping shows "SCAN A NEW BEER" modal
+         Pre-submit it shows only the activeFlavour as the current chip
+         with the other two locked (no filter behaviour yet).
+         ---------------------------------------------------------- */
+      function renderFlavourStrip() {
+        const strip = document.getElementById('flavor-strip');
+        if (!strip) return;
+        strip.innerHTML = '';
+        const hasSubmittedActive = activeFlavour && !!submittedTraces[activeFlavour];
+        const filter = activeFilter || activeFlavour;
+
+        FLAVOUR_ORDER.forEach((fid) => {
+          const f = FLAVOURS[fid];
+          const isUnlocked = unlockedFlavours.has(fid);
+          const isActiveFilter = hasSubmittedActive && fid === filter;
+          const chip = document.createElement('button');
+          chip.className = 'flavor-chip';
+          if (isUnlocked && hasSubmittedActive) chip.classList.add('is-filter');
+          if (isActiveFilter) chip.classList.add('is-active');
+          if (!isUnlocked) chip.classList.add('locked');
+
+          const pip  = document.createElement('span');
+          pip.className = 'pip';
+          pip.textContent = isUnlocked ? f.emoji : '🔒';
+          const label = document.createElement('span');
+          label.textContent = f.label;
+          chip.appendChild(pip);
+          chip.appendChild(label);
+
+          chip.addEventListener('click', (e) => {
+            e.stopPropagation();
+            haptic([15]);
+            if (!isUnlocked) {
+              showModal({
+                icon: '🍺',
+                title: I18N[lang].mScanNewTitle,
+                body:  I18N[lang].mScanNewBody,
+                primary: I18N[lang].mScanNewCta,
+                onPrimary: backToAR,
+              });
+              return;
+            }
+            if (!hasSubmittedActive) return; // pre-submit: chips aren't filters
+            activeFilter = fid;
+            renderMap();
+          });
+
+          strip.appendChild(chip);
+        });
+      }
+
+      /* ----------------------------------------------------------
+         Generic UX modal — reuses .community-overlay markup so it
+         already has nice transitions. We mutate its content per call.
+         Options:  { icon, title, body, primary, onPrimary,
+                     secondary, onSecondary }
+         ---------------------------------------------------------- */
+      function showModal(opts) {
+        const overlay = document.getElementById('community-overlay');
+        const card    = overlay.querySelector('.community-card');
+        // Replace card contents
+        card.innerHTML = `
+          <button class="community-close" id="ux-close" aria-label="Close">✕</button>
+          <div class="community-badge">${opts.icon || '✦'}</div>
+          <h3 class="community-title">${opts.title || ''}</h3>
+          <p class="community-body">${opts.body || ''}</p>
+          <div class="community-actions">
+            ${opts.secondary ? `<button class="community-btn community-btn--ghost" id="ux-secondary">${opts.secondary}</button>` : ''}
+            <button class="community-btn community-btn--solid" id="ux-primary">${opts.primary || 'OK'}</button>
+          </div>
+        `;
+        overlay.hidden = false;
+        requestAnimationFrame(() => overlay.classList.add('is-on'));
+
+        const close = () => {
+          overlay.classList.remove('is-on');
+          setTimeout(() => { overlay.hidden = true; }, 360);
+        };
+        document.getElementById('ux-close').addEventListener('click', close);
+        document.getElementById('ux-primary').addEventListener('click', () => {
+          close();
+          if (opts.onPrimary) setTimeout(opts.onPrimary, 200);
+        });
+        if (opts.secondary) {
+          document.getElementById('ux-secondary').addEventListener('click', () => {
+            close();
+            if (opts.onSecondary) setTimeout(opts.onSecondary, 200);
+          });
+        }
+      }
+
+      /* ----------------------------------------------------------
+         Back to AR — return user to scan state with MindAR running.
+         Does NOT wipe profile or unlocked flavours; only clears the
+         active scan so the user can pick / scan a fresh beer.
+         ---------------------------------------------------------- */
+      async function backToAR() {
+        activeFlavour = null;
+        activeFilter  = null;
+        closeBubble();
+        traceInput.value = '';
+        traceSend.disabled = true;
+        body.dataset.submitted = '0';
+        goTo('scan');
+        const start = () => startMindAR();
+        if (scene.hasLoaded) await start();
+        else scene.addEventListener('loaded', start, { once: true });
+      }
+
+      function centerOnUser() {
+        const wrap = document.getElementById('map-wrap');
+        const stage = document.getElementById('map-stage');
+        if (!wrap || !stage) return;
+        // Defer a frame so layout has stabilised (stage width is set by aspect-ratio)
+        requestAnimationFrame(() => {
+          const focusX = (myCoord ? myCoord.x : 50) / 100;
+          const target = focusX * stage.offsetWidth - wrap.clientWidth / 2;
+          wrap.scrollLeft = Math.max(0, Math.min(stage.offsetWidth - wrap.clientWidth, target));
+        });
+      }
+
+      function openBubble(t, pinEl) {
+        bubIcon.textContent  = t.icon || '🍒';
+        bubQuote.textContent = '“' + t.quote + '”';
+        bubWho.textContent   = t.who;
+        bubble.classList.add('is-open');
+
+        // The bubble lives INSIDE .map-wrap (the scroll container), so its
+        // absolute coordinates are in the wrap's content box. To anchor it
+        // to the same screen position as the pin, add scrollLeft back in.
+        const wrap = document.getElementById('map-wrap');
+        const r    = wrap.getBoundingClientRect();
+        const pr   = pinEl.getBoundingClientRect();
+        const pxScreen = pr.left - r.left + pr.width / 2;     // pin centre in wrap viewport coords
+        const pyScreen = pr.top  - r.top;                      // pin top in viewport coords
+        const pxContent = pxScreen + wrap.scrollLeft;          // → wrap content coords
+
+        bubble.style.left = '50%';
+        bubble.style.transform = 'translate(-50%, 0)';
+        const placeAbove = pyScreen > 180;
+        bubble.style.top = placeAbove ? (pyScreen - 130) + 'px' : (pyScreen + 32) + 'px';
+
+        requestAnimationFrame(() => {
+          const bw = bubble.offsetWidth;
+          let left = pxContent - bw / 2;
+          // Keep within the currently-visible window
+          const minLeft = wrap.scrollLeft + 10;
+          const maxLeft = wrap.scrollLeft + r.width - bw - 10;
+          left = Math.max(minLeft, Math.min(maxLeft, left));
+          bubble.style.left = left + 'px';
+          bubble.style.transform = '';
+        });
+      }
+      function closeBubble() { bubble.classList.remove('is-open'); }
+      document.getElementById('bub-close').addEventListener('click', closeBubble);
+      document.getElementById('map-wrap').addEventListener('click', (e) => {
+        if (!e.target.closest('.trace-pin') && !e.target.closest('.trace-bubble')) closeBubble();
+      });
+
+      /* ============================================================
+         LEAVE YOUR TRACE
+         ============================================================ */
+      const traceInput = document.getElementById('trace-input');
+      const traceSend  = document.getElementById('trace-send');
+      const toast      = document.getElementById('toast');
+
+      traceInput.addEventListener('input', () => {
+        traceSend.disabled = !traceInput.value.trim();
+      });
+
+      traceSend.addEventListener('click', () => {
+        if (traceSend.disabled) return;
+        if (!activeFlavour) return;
+        // One trace per flavour, per session — guard against double submit
+        if (submittedTraces[activeFlavour]) return;
+
+        const profile = (() => {
+          try { return JSON.parse(localStorage.getItem('zarra:profile') || '{}'); }
+          catch (_) { return {}; }
+        })();
+        let coord, label;
+        if (myCoord) {
+          coord = { x: myCoord.x, y: myCoord.y };
+          const cc = COUNTRY_COORDS[profile.country];
+          label = (cc && cc.label) || 'EARTH';
+        } else {
+          const cc = COUNTRY_COORDS[profile.country] || { x: 50, y: 50, label: 'EARTH' };
+          coord = { x: cc.x, y: cc.y };
+          label = cc.label;
+        }
+        const jx = (Math.random() - 0.5) * 3;
+        const jy = (Math.random() - 0.5) * 3;
+        const t = {
+          id:       't' + Date.now(),
+          flavour:  activeFlavour,
+          quote:    traceInput.value.trim(),
+          who:      (profile.name || 'YOU').toUpperCase() + ', ' + label,
+          x:        coord.x + jx,
+          y:        coord.y + jy,
+          mine:     true,
+        };
+        addTrace(t);
+
+        // Update flavour state: mark submitted, unlock category
+        submittedTraces[activeFlavour] = true;
+        unlockedFlavours.add(activeFlavour);
+        activeFilter = activeFlavour;
+        saveFlavourState();
+
+        traceInput.value = '';
+        traceSend.disabled = true;
+        renderMap();
+        haptic([60, 40, 100]);
+        sfx('send');
+
+        toast.classList.add('is-on');
+        setTimeout(() => toast.classList.remove('is-on'), 1800);
+
+        // Show the THANK YOU modal first; once dismissed the map is
+        // already updated (filter chip active, unlocked traces visible).
+        const flavourLabel = FLAVOURS[activeFlavour]?.label || '';
+        setTimeout(() => {
+          showModal({
+            icon: FLAVOURS[activeFlavour]?.emoji || '🐝',
+            title: I18N[lang].mThanksTitle,
+            body:  I18N[lang].mThanksBody.replace('{flavour}', flavourLabel),
+            primary: I18N[lang].mOkay,
+            onPrimary: () => {
+              requestAnimationFrame(() => {
+                centerOnUser();
+                const mine = tracesLayer.querySelector(`.trace-pin[data-id="${t.id}"]`);
+                if (mine) requestAnimationFrame(() => openBubble(t, mine));
+              });
+            },
+          });
+        }, 600);
+      });
+
+      /* ============================================================
+         COMMUNITY MODAL
+         ============================================================ */
+      const communityOverlay = document.getElementById('community-overlay');
+      function openCommunity() {
+        communityOverlay.hidden = false;
+        requestAnimationFrame(() => communityOverlay.classList.add('is-on'));
+        sfx('success');
+      }
+      function closeCommunity() {
+        communityOverlay.classList.remove('is-on');
+        setTimeout(() => { communityOverlay.hidden = true; }, 360);
+      }
+      document.getElementById('community-close').addEventListener('click', closeCommunity);
+      document.getElementById('community-later').addEventListener('click', closeCommunity);
+      document.getElementById('community-join').addEventListener('click', () => {
+        haptic([40, 30, 80]);
+        sfx('success');
+        // Brief pause so the haptic/sfx land before navigation
+        setTimeout(() => {
+          window.location.href = 'https://www.cerveceriadezarra.es/';
+        }, 200);
+      });
+
+      document.getElementById('map-back').addEventListener('click', () => {
+        haptic([30]);
+        backToAR();
+      });
+      document.getElementById('scan-again-btn').addEventListener('click', () => {
+        haptic([40]);
+        backToAR();
+      });
+
+      /* ============================================================
+         MAP ZOOM
+         ============================================================ */
+      let mapZoom = 1;
+      const MAP_ZOOM_MIN = 1;
+      const MAP_ZOOM_MAX = 4;
+      function applyMapZoom(focusXPct, focusYPct) {
+        const wrap = document.getElementById('map-wrap');
+        const stage = document.getElementById('map-stage');
+        if (!wrap || !stage) return;
+        // Compute the natural (1x) size based on wrap height
+        const baseH = wrap.clientHeight;
+        const baseW = baseH * 1.75;
+        const targetW = Math.max(wrap.clientWidth, baseW * mapZoom);
+        const targetH = baseH * mapZoom;
+        stage.style.width = targetW + 'px';
+        stage.style.height = targetH + 'px';
+        stage.style.aspectRatio = 'auto';
+        requestAnimationFrame(() => {
+          const fx = (focusXPct != null ? focusXPct : (myCoord ? myCoord.x : 50)) / 100;
+          const fy = (focusYPct != null ? focusYPct : (myCoord ? myCoord.y : 50)) / 100;
+          wrap.scrollLeft = Math.max(0, Math.min(targetW - wrap.clientWidth, fx * targetW - wrap.clientWidth / 2));
+          wrap.scrollTop  = Math.max(0, Math.min(targetH - wrap.clientHeight, fy * targetH - wrap.clientHeight / 2));
+        });
+      }
+      document.getElementById('zoom-in').addEventListener('click', () => {
+        haptic([15]);
+        mapZoom = Math.min(MAP_ZOOM_MAX, mapZoom + 0.5);
+        applyMapZoom();
+      });
+      document.getElementById('zoom-out').addEventListener('click', () => {
+        haptic([15]);
+        mapZoom = Math.max(MAP_ZOOM_MIN, mapZoom - 0.5);
+        applyMapZoom();
+      });
+
+      /* ============================================================
+         RESTART
+         ============================================================ */
+      function restart() {
+        closeBubble();
+        traceInput.value = '';
+        traceSend.disabled = true;
+        // Clear flavour state so the prototype demo starts fresh
+        activeFlavour = null;
+        activeFilter  = null;
+        unlockedFlavours = new Set();
+        submittedTraces  = {};
+        localStorage.removeItem('zarra:flavours');
+        localStorage.removeItem('zarra:traces');
+        body.dataset.submitted = '0';
+        goTo('intro');
+        stopMindAR();
+      }
+      document.getElementById('restart-btn').addEventListener('click', restart);
+
+      /* ============================================================
+         DEBUG MODE  (?debug)
+         ←/→ cycle states · Skip detect button on scan
+         ============================================================ */
+      if (location.search.includes('debug')) {
+        body.classList.add('is-debug');
+        document.addEventListener('keydown', (e) => {
+          const i = STATES.indexOf(state);
+          if (e.key === 'ArrowRight' || e.key === ' ') {
+            if (i < STATES.length - 1) goTo(STATES[i + 1]);
+          } else if (e.key === 'ArrowLeft') {
+            if (i > 0) goTo(STATES[i - 1]);
+          }
+        });
+        document.getElementById('dev-skip').addEventListener('click', () => {
+          if (state === 'scan') {
+            activeFlavour = pickedFlavour;
+            spawnSwarm();
+            goTo('bee');
+          }
+        });
+      }
+
+      /* HTTPS guard ---------------------------------------------- */
+      if (
+        location.protocol !== 'https:' &&
+        location.hostname !== 'localhost' &&
+        location.hostname !== '127.0.0.1'
+      ) {
+        const warn = document.createElement('div');
+        warn.style.cssText =
+          'position:fixed;top:0;left:0;right:0;padding:.6rem 1rem;background:#7a2418;color:#fff;font:600 .75rem system-ui;z-index:999;text-align:center;letter-spacing:.06em;';
+        warn.textContent = 'WebAR needs HTTPS — open this page over https:// or localhost.';
+        document.body.appendChild(warn);
+      }
+    </script>
+  </body>
+</html>
