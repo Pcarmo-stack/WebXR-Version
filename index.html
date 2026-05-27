@@ -53,11 +53,10 @@
       }
 
       * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-      /* Disable browser double-tap zoom and native pinch zoom on the whole
-         page. Our map has its own pinch handler; the AR camera view must
-         never accidentally scale the browser chrome. */
-      html { touch-action: manipulation; }
-      body { touch-action: manipulation; }
+      /* Disable double-tap zoom on every screen except the map scroll area.
+         touch-action does not inherit, but setting it on html/body is the
+         cross-browser way to block document-level double-tap zoom. */
+      html, body { touch-action: manipulation; }
 
       html, body {
         height: 100%;
@@ -640,6 +639,10 @@
         -webkit-overflow-scrolling: touch;
         scroll-behavior: smooth;
         scrollbar-width: none;
+        /* pan-x pan-y: browser handles single-finger scroll natively;
+           pinch events are NOT handled by the browser so our JS gets them
+           cleanly without fighting the default scroll behaviour. */
+        touch-action: pan-x pan-y;
       }
       .map-wrap::-webkit-scrollbar { display: none; }
       /* Stage holds the map image + pin layer at a fixed aspect ratio so
@@ -2743,73 +2746,92 @@
       });
 
       // ---- Pinch-to-zoom ----------------------------------------
-      // Freeze the entire initial state at touchstart so every touchmove
-      // frame recomputes scroll from a stable baseline — no drift, no
-      // anchor wandering.
+      // Delta / incremental approach — exactly how Google Maps and iOS Photos
+      // work. Each touchmove frame computes the *change* since the previous
+      // frame (ΔscaleFactor + Δpan), then applies it to the current scroll
+      // state. There is no frozen baseline that can drift; the anchor always
+      // follows the live midpoint between the two fingers.
       (function () {
         const wrap  = document.getElementById('map-wrap');
-        let pinch   = null;   // { startDist, startZoom, startScrollLeft, startScrollTop, midX, midY }
+        let active  = false;
+        let prevDist = 1;
+        let prevMidX = 0, prevMidY = 0;
 
-        function touchDist(t) {
+        function fingerDist(t) {
           const dx = t[0].clientX - t[1].clientX;
           const dy = t[0].clientY - t[1].clientY;
-          return Math.sqrt(dx * dx + dy * dy);
+          return Math.sqrt(dx * dx + dy * dy) || 1;
+        }
+        function fingerMid(t) {
+          const rect = wrap.getBoundingClientRect();
+          return {
+            x: (t[0].clientX + t[1].clientX) / 2 - rect.left,
+            y: (t[0].clientY + t[1].clientY) / 2 - rect.top,
+          };
         }
 
         wrap.addEventListener('touchstart', (e) => {
           if (e.touches.length === 2) {
-            e.preventDefault();
-            const rect = wrap.getBoundingClientRect();
-            pinch = {
-              startDist:       touchDist(e.touches),
-              startZoom:       mapZoom,
-              startScrollLeft: wrap.scrollLeft,
-              startScrollTop:  wrap.scrollTop,
-              // midpoint in wrap-viewport coords (stable for this gesture)
-              midX: ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left,
-              midY: ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top,
-            };
+            // Don't preventDefault here — let the browser recognise the gesture
+            // properly before we take over in touchmove.
+            const m = fingerMid(e.touches);
+            prevDist = fingerDist(e.touches);
+            prevMidX = m.x;
+            prevMidY = m.y;
+            active   = true;
+          } else {
+            active = false;
           }
-        }, { passive: false });
+        }, { passive: true });
 
         wrap.addEventListener('touchmove', (e) => {
-          if (e.touches.length !== 2 || !pinch) return;
+          if (!active || e.touches.length !== 2) return;
+          // Must preventDefault to stop native scroll during a pinch.
           e.preventDefault();
 
-          const scale   = touchDist(e.touches) / pinch.startDist;
-          const newZoom = Math.max(MAP_ZOOM_MIN,
-                           Math.min(MAP_ZOOM_MAX, pinch.startZoom * scale));
-          mapZoom = newZoom;
+          const stage     = document.getElementById('map-stage');
+          const curDist   = fingerDist(e.touches);
+          const cur       = fingerMid(e.touches);
 
-          const stage = document.getElementById('map-stage');
-          const prev  = stageSize(pinch.startZoom);   // baseline size
-          const next  = stageSize(newZoom);
+          // ── incremental scale ──────────────────────────────────────
+          const deltaScale = curDist / prevDist;
+          const oldZoom    = mapZoom;
+          mapZoom = Math.max(MAP_ZOOM_MIN, Math.min(MAP_ZOOM_MAX, mapZoom * deltaScale));
+          const actualScale = mapZoom / oldZoom;   // clamped ratio
 
-          // The content point under the initial midpoint at the start scroll
-          const contentX = pinch.startScrollLeft + pinch.midX;
-          const contentY = pinch.startScrollTop  + pinch.midY;
+          // ── incremental pan (midpoint movement) ────────────────────
+          const panX = cur.x - prevMidX;
+          const panY = cur.y - prevMidY;
 
-          // Where that point lands in the new stage
-          const scaledX  = contentX * (next.w / prev.w);
-          const scaledY  = contentY * (next.h / prev.h);
-
+          // ── resize stage ───────────────────────────────────────────
+          const prev = stageSize(oldZoom);
+          const next = stageSize(mapZoom);
           stage.style.width       = next.w + 'px';
           stage.style.height      = next.h + 'px';
           stage.style.aspectRatio = 'auto';
 
-          wrap.scrollLeft = Math.max(0, Math.min(next.w - wrap.clientWidth,  scaledX - pinch.midX));
-          wrap.scrollTop  = Math.max(0, Math.min(next.h - wrap.clientHeight, scaledY - pinch.midY));
+          // ── reposition scroll ──────────────────────────────────────
+          // The content under cur.x/y should stay there after both the
+          // pan and the scale. Formula:
+          //   contentX (in old stage coords) = scrollLeft + cur.x - panX
+          //   After scale: contentX maps to contentX * actualScale
+          //   We want that at cur.x → scrollLeft = contentX * actualScale - cur.x
+          const contentX = wrap.scrollLeft + cur.x - panX;
+          const contentY = wrap.scrollTop  + cur.y - panY;
+          wrap.scrollLeft = Math.max(0, Math.min(next.w - wrap.clientWidth,  contentX * actualScale - cur.x));
+          wrap.scrollTop  = Math.max(0, Math.min(next.h - wrap.clientHeight, contentY * actualScale - cur.y));
+
+          // ── save for next frame ────────────────────────────────────
+          prevDist = curDist;
+          prevMidX = cur.x;
+          prevMidY = cur.y;
         }, { passive: false });
 
-        wrap.addEventListener('touchend',   () => { pinch = null; }, { passive: true });
-        wrap.addEventListener('touchcancel',() => { pinch = null; }, { passive: true });
+        wrap.addEventListener('touchend', (e) => {
+          if (e.touches.length < 2) active = false;
+        }, { passive: true });
+        wrap.addEventListener('touchcancel', () => { active = false; }, { passive: true });
       })();
-
-      // Block browser-level pinch zoom globally (needed on iOS ≥ 10 which
-      // ignores user-scalable=no). Only fires when 2+ fingers are on screen.
-      document.addEventListener('touchstart', (e) => {
-        if (e.touches.length >= 2) e.preventDefault();
-      }, { passive: false });
 
       /* ============================================================
          RESTART
