@@ -638,27 +638,24 @@
         position: relative;
         width: 100%;
         height: 100%;
-        overflow: auto;
+        overflow-y: auto;
+        overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
         scroll-behavior: smooth;
         scrollbar-width: none;
-        /* pan-x pan-y: browser handles single-finger scroll natively;
-           pinch events are NOT handled by the browser so our JS gets them
-           cleanly without fighting the default scroll behaviour. */
-        touch-action: pan-x pan-y;
+        touch-action: pan-y;
       }
       .map-wrap::-webkit-scrollbar { display: none; }
       /* Stage holds the map image + pin layer at a fixed aspect ratio so
          lat/lng → % math stays exact regardless of phone screen shape.
-         Map source aspect ratio: 7001 / 4001 ≈ 1.75. */
+         New map source aspect ratio: 1358 / 1954 ≈ 0.695 (portrait). */
       .map-stage {
         position: relative;
-        height: 100%;
-        aspect-ratio: 1.75 / 1;
-        min-width: 100%;
+        width: 100%;
+        aspect-ratio: 0.695 / 1;
+        min-height: 100%;
         background: transparent;
         transform-origin: 0 0;
-        transition: width var(--t-med) var(--ease), height var(--t-med) var(--ease);
       }
       .map-img {
         position: absolute;
@@ -920,8 +917,12 @@
         line-height: 1;
         background: var(--orange-soft);
       }
-      .flavor-chip.locked { color: var(--ink-soft); background: rgba(255,255,255,0.75); }
-      .flavor-chip.locked .pip { background: rgba(0,0,0,0.08); }
+      .flavor-chip.locked {
+        color: rgba(42,26,14,0.35);
+        background: rgba(255,255,255,0.6);
+        filter: grayscale(0.7) opacity(0.65);
+      }
+      .flavor-chip.locked .pip { background: rgba(0,0,0,0.06); }
 
       .map-back {
         position: absolute;
@@ -1160,6 +1161,13 @@
         line-height: 1.4;
         color: rgba(255,255,255,0.92);
       }
+      .join-link-hint {
+        margin: -0.3rem auto 0.75rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: rgba(255,255,255,0.7);
+      }
       .join-btn {
         background: var(--magenta);
         color: #fff;
@@ -1381,6 +1389,7 @@
         <div class="join-block">
           <h3 class="join-title" data-i18n="commTitle">JOIN THE COMMUNITY</h3>
           <p class="join-body" data-i18n="commBody">Be the first to taste new flavors, hear stories from the brewery, and meet other people who left a trace.</p>
+          <p class="join-link-hint" data-i18n="commLinkHint">Takes you to cerveceriadezarra.es</p>
           <button class="join-btn" id="join-btn" data-i18n="commJoin">Join</button>
         </div>
       </div>
@@ -1590,9 +1599,9 @@
           permBody: 'zarra.cervesa would like to use your <b>camera</b> to bring something to life and your <b>location</b> to place your trace on the map.<br/><br/><small>We also store a few cookies to remember your trace between visits.</small>',
           permDeny: 'Deny',
           permAllow: 'Allow',
-          scanFind: 'Find the can',
+          scanFind: 'Find the ingredient',
           scanFrame: 'Frame it within',
-          beeMsg: 'Click on the golden ingredient.',
+          beeMsg: 'Tap the golden bee.',
           beeCta: 'Continue',
           xrReady: 'Spatial mode',
           profTitle: 'TELL US ABOUT<br/>YOURSELF',
@@ -1609,6 +1618,7 @@
           commBody: 'Be the first to taste new flavors, hear stories from the brewery, and meet other people who left a trace.',
           commJoin: 'Join',
           commLater: 'Maybe later',
+          commLinkHint: '↗ Takes you to cerveceriadezarra.es',
           pickerHint: "I'm scanning…",
           scanAgain: 'Scan another beer',
           mNotSoFastTitle: 'NOT SO FAST…',
@@ -1629,9 +1639,9 @@
           permBody: 'zarra.cervesa quiere usar tu <b>cámara</b> para dar vida a algo y tu <b>ubicación</b> para colocar tu huella en el mapa.<br/><br/><small>También usamos algunas cookies para recordar tu huella entre visitas.</small>',
           permDeny: 'Rechazar',
           permAllow: 'Permitir',
-          scanFind: 'Encuentra la lata',
-          scanFrame: 'Encuádrala dentro',
-          beeMsg: 'Pulsa el ingrediente dorado.',
+          scanFind: 'Encuentra el ingrediente',
+          scanFrame: 'Encuádralo dentro',
+          beeMsg: 'Toca la abeja dorada.',
           beeCta: 'Continuar',
           xrReady: 'Modo espacial',
           profTitle: 'CUÉNTANOS<br/>SOBRE TI',
@@ -1648,6 +1658,7 @@
           commBody: 'Sé el primero en probar nuevos sabores, escuchar historias de la cervecería y conocer a otras personas que dejaron una huella.',
           commJoin: 'Unirme',
           commLater: 'Quizás más tarde',
+          commLinkHint: '↗ Te lleva a cerveceriadezarra.es',
           pickerHint: 'Estoy escaneando…',
           scanAgain: 'Escanear otra cerveza',
           mNotSoFastTitle: 'ESPERA…',
@@ -1885,9 +1896,9 @@
          renderOrder:999 + depthTest:false makes them always visible above
          the MindAR camera background plane in the same WebGL context.
          ============================================================ */
-      let swarmSpawned  = false;
-      let goldBeeEntity = null;   // captured in spawnSwarm; used by screen-space touch hit test
-      let swarmAnchored = false;  // becomes true after the first lock to world space
+      let swarmSpawned   = false;
+      let goldBeeEntities = [];   // all gold bees — any hit counts
+      let swarmAnchored  = false; // becomes true after the first lock to world space
 
       /* ----------- WebXR capability probe -----------------------
        * MindAR drives the active AR session (it owns the camera + render
@@ -1963,9 +1974,9 @@
       }
 
       function clearSwarm() {
-        swarmSpawned  = false;
-        swarmAnchored = false;
-        goldBeeEntity = null;
+        swarmSpawned    = false;
+        swarmAnchored   = false;
+        goldBeeEntities = [];
         document.getElementById('bee-cta').hidden = true;
         while (beeSwarm.firstChild) beeSwarm.removeChild(beeSwarm.firstChild);
         // Undo the THREE-only reparent so the next session starts in
@@ -1993,14 +2004,18 @@
         // amplitudes are roughly doubled so the swarm visibly roams across
         // the screen instead of clustering tight around the lock point.
         const configs = [
-          // Speeds halved vs original — lazy, dreamy drift
-          { scale:0.0225, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.10, ampY:0.70, ampZ:0.36, speedX:0.34, speedY:0.42, speedZ:0.22, phaseX:0.0, phaseY:1.2, phaseZ:0.5 },
-          { scale:0.0175, gold:false, centerX:0, centerY:0, centerZ:0, ampX:0.95, ampY:0.65, ampZ:0.40, speedX:0.46, speedY:0.52, speedZ:0.28, phaseX:1.4, phaseY:0.3, phaseZ:2.1 },
-          { scale:0.0150, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.30, ampY:0.80, ampZ:0.44, speedX:0.56, speedY:0.34, speedZ:0.36, phaseX:2.5, phaseY:1.8, phaseZ:0.1 },
-          { scale:0.0200, gold:false, centerX:0, centerY:0, centerZ:0, ampX:0.80, ampY:0.60, ampZ:0.28, speedX:0.28, speedY:0.48, speedZ:0.18, phaseX:3.2, phaseY:2.4, phaseZ:1.6 },
-          { scale:0.0160, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.15, ampY:0.78, ampZ:0.40, speedX:0.40, speedY:0.34, speedZ:0.30, phaseX:0.7, phaseY:3.0, phaseZ:2.7 },
-          // GOLD — tight central orbit, phases at 0 so it starts right in front
-          { scale:0.0300, gold:true,  centerX:0, centerY:0, centerZ:0, ampX:0.45, ampY:0.30, ampZ:0.18, speedX:0.32, speedY:0.40, speedZ:0.24, phaseX:0.0, phaseY:0.0, phaseZ:0.0 },
+          // Regular bees — moderate speed, visible roaming
+          { scale:0.0225, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.10, ampY:0.70, ampZ:0.36, speedX:0.55, speedY:0.65, speedZ:0.38, phaseX:0.0, phaseY:1.2, phaseZ:0.5 },
+          { scale:0.0175, gold:false, centerX:0, centerY:0, centerZ:0, ampX:0.95, ampY:0.65, ampZ:0.40, speedX:0.68, speedY:0.78, speedZ:0.44, phaseX:1.4, phaseY:0.3, phaseZ:2.1 },
+          { scale:0.0150, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.30, ampY:0.80, ampZ:0.44, speedX:0.80, speedY:0.54, speedZ:0.52, phaseX:2.5, phaseY:1.8, phaseZ:0.1 },
+          { scale:0.0200, gold:false, centerX:0, centerY:0, centerZ:0, ampX:0.80, ampY:0.60, ampZ:0.28, speedX:0.50, speedY:0.70, speedZ:0.34, phaseX:3.2, phaseY:2.4, phaseZ:1.6 },
+          { scale:0.0160, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.15, ampY:0.78, ampZ:0.40, speedX:0.62, speedY:0.56, speedZ:0.46, phaseX:0.7, phaseY:3.0, phaseZ:2.7 },
+          { scale:0.0180, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.00, ampY:0.72, ampZ:0.38, speedX:0.72, speedY:0.60, speedZ:0.40, phaseX:1.8, phaseY:0.9, phaseZ:1.3 },
+          { scale:0.0155, gold:false, centerX:0, centerY:0, centerZ:0, ampX:1.20, ampY:0.68, ampZ:0.34, speedX:0.58, speedY:0.74, speedZ:0.30, phaseX:4.0, phaseY:2.1, phaseZ:3.5 },
+          // GOLD (×3) — spread phases so at least one is always near-center
+          { scale:0.0300, gold:true,  centerX:0, centerY:0, centerZ:0, ampX:0.45, ampY:0.28, ampZ:0.18, speedX:0.70, speedY:0.80, speedZ:0.50, phaseX:0.0, phaseY:0.0, phaseZ:0.0 },
+          { scale:0.0260, gold:true,  centerX:0, centerY:0, centerZ:0, ampX:0.50, ampY:0.32, ampZ:0.20, speedX:0.65, speedY:0.75, speedZ:0.45, phaseX:2.1, phaseY:1.0, phaseZ:1.6 },
+          { scale:0.0240, gold:true,  centerX:0, centerY:0, centerZ:0, ampX:0.42, ampY:0.26, ampZ:0.16, speedX:0.75, speedY:0.85, speedZ:0.55, phaseX:4.2, phaseY:2.0, phaseZ:3.1 },
         ];
 
         configs.forEach((c) => {
@@ -2050,7 +2065,7 @@
             }
           });
           if (c.gold) {
-            goldBeeEntity = ent;
+            goldBeeEntities.push(ent);
             ent.setAttribute('gold-tint', '');
           }
           beeSwarm.appendChild(ent);
@@ -2080,22 +2095,24 @@
          ============================================================ */
       const _tmpVec = new THREE.Vector3();
       document.addEventListener('touchend', (e) => {
-        if (state !== 'bee' || !goldBeeEntity) return;
+        if (state !== 'bee' || !goldBeeEntities.length) return;
         const cam = scene.camera;
         if (!cam) return;
         const touch = e.changedTouches[0];
         if (!touch) return;
-        // Project gold bee world position → NDC → screen pixels
-        goldBeeEntity.object3D.getWorldPosition(_tmpVec);
-        _tmpVec.project(cam);
-        const sx = ( _tmpVec.x * 0.5 + 0.5) * window.innerWidth;
-        const sy = (-_tmpVec.y * 0.5 + 0.5) * window.innerHeight;
-        const dx = touch.clientX - sx;
-        const dy = touch.clientY - sy;
-        // ~22% of the shorter viewport edge — thumb-sized hit area
+        // Check every gold bee — hit any one to trigger
         const hitRadius = Math.min(window.innerWidth, window.innerHeight) * 0.22;
-        if (Math.sqrt(dx*dx + dy*dy) < hitRadius) {
-          onGoldBeeClicked();
+        for (const bee of goldBeeEntities) {
+          bee.object3D.getWorldPosition(_tmpVec);
+          _tmpVec.project(cam);
+          const sx = ( _tmpVec.x * 0.5 + 0.5) * window.innerWidth;
+          const sy = (-_tmpVec.y * 0.5 + 0.5) * window.innerHeight;
+          const dx = touch.clientX - sx;
+          const dy = touch.clientY - sy;
+          if (Math.sqrt(dx*dx + dy*dy) < hitRadius) {
+            onGoldBeeClicked();
+            return;
+          }
         }
       }, { passive: true });
 
@@ -2190,11 +2207,14 @@
       // padding around the land area. These constants define the actual
       // plot rectangle (in % of the image / stage) and the Mercator
       // latitude bounds that map to its top & bottom edges.
+      // Portrait map (1358×1954). Calibrated against the visual positions
+      // of the countries in the dropdown — optimised for Europe accuracy
+      // with reasonable placement for Americas and East Asia.
       const MAP_CALIB = {
-        xMin: 5.5,  xMax: 94.5,   // -180° → +180° longitude (linear)
-        yMin: 9.5,  yMax: 86.5,   // top/bottom of plot in image %
-        latTop:  76,              // approximate latitude at yMin (Mercator)
-        latBot: -63,              // approximate latitude at yMax (Mercator)
+        xMin: -8.5,  xMax: 88.5,
+        yMin:  5.0,  yMax: 91.5,
+        latTop:  74,
+        latBot: -58,
       };
       function _mercY(latDeg) {
         // Returns Mercator y in [0, 1] where 0=top pole, 1=bottom pole.
@@ -2427,7 +2447,7 @@
 
           const pip  = document.createElement('span');
           pip.className = 'pip';
-          pip.textContent = isUnlocked ? f.emoji : '🔒';
+          pip.textContent = f.emoji;   // always show emoji; CSS greys it when locked
           const label = document.createElement('span');
           label.textContent = f.label;
           chip.appendChild(pip);
@@ -2517,42 +2537,41 @@
         const wrap = document.getElementById('map-wrap');
         const stage = document.getElementById('map-stage');
         if (!wrap || !stage) return;
-        // Defer a frame so layout has stabilised (stage width is set by aspect-ratio)
+        // Portrait map scrolls vertically — centre on user's y position.
         requestAnimationFrame(() => {
-          const focusX = (myCoord ? myCoord.x : 50) / 100;
-          const target = focusX * stage.offsetWidth - wrap.clientWidth / 2;
-          wrap.scrollLeft = Math.max(0, Math.min(stage.offsetWidth - wrap.clientWidth, target));
+          const focusY = (myCoord ? myCoord.y : 50) / 100;
+          const target = focusY * stage.offsetHeight - wrap.clientHeight / 2;
+          wrap.scrollTop = Math.max(0, Math.min(stage.offsetHeight - wrap.clientHeight, target));
         });
       }
 
       function openBubble(t, pinEl) {
-        bubIcon.textContent  = t.icon || '🍒';
-        bubQuote.textContent = '“' + t.quote + '”';
+        bubIcon.textContent  = t.icon || FLAVOURS[t.flavour]?.emoji || '✦';
+        bubQuote.textContent = '”' + t.quote + '”';
         bubWho.textContent   = t.who;
         bubble.classList.add('is-open');
 
-        // The bubble lives INSIDE .map-wrap (the scroll container), so its
-        // absolute coordinates are in the wrap's content box. To anchor it
-        // to the same screen position as the pin, add scrollLeft back in.
+        // Portrait map scrolls vertically. Bubble is absolutely positioned
+        // inside .map-wrap content box — add scrollTop for y, keep x centred.
         const wrap = document.getElementById('map-wrap');
         const r    = wrap.getBoundingClientRect();
         const pr   = pinEl.getBoundingClientRect();
-        const pxScreen = pr.left - r.left + pr.width / 2;     // pin centre in wrap viewport coords
-        const pyScreen = pr.top  - r.top;                      // pin top in viewport coords
-        const pxContent = pxScreen + wrap.scrollLeft;          // → wrap content coords
+        const pyScreen  = pr.top  - r.top;          // pin top in viewport coords
+        const pyContent = pyScreen + wrap.scrollTop; // pin top in content coords
 
-        bubble.style.left = '50%';
-        bubble.style.transform = 'translate(-50%, 0)';
         const placeAbove = pyScreen > 180;
-        bubble.style.top = placeAbove ? (pyScreen - 130) + 'px' : (pyScreen + 32) + 'px';
+        const bubTop = placeAbove
+          ? pyContent - 145
+          : pyContent + pr.height + 8;
+
+        bubble.style.top  = bubTop + 'px';
+        bubble.style.left = '50%';
+        bubble.style.transform = 'translateX(-50%)';
 
         requestAnimationFrame(() => {
           const bw = bubble.offsetWidth;
-          let left = pxContent - bw / 2;
-          // Keep within the currently-visible window
-          const minLeft = wrap.scrollLeft + 10;
-          const maxLeft = wrap.scrollLeft + r.width - bw - 10;
-          left = Math.max(minLeft, Math.min(maxLeft, left));
+          let left = r.width / 2 - bw / 2;
+          left = Math.max(10, Math.min(r.width - bw - 10, left));
           bubble.style.left = left + 'px';
           bubble.style.transform = '';
         });
