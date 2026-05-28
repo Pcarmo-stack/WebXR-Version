@@ -515,7 +515,7 @@
         z-index: 0;
         pointer-events: none;
         background-color: var(--cream);
-        background-image: url('./assets/world-map.png?v=2');
+        background-image: url('./assets/world-map.png?v=3');
         background-repeat: no-repeat;
         background-position: center bottom;
         background-size: 110% auto;
@@ -648,11 +648,11 @@
       .map-wrap::-webkit-scrollbar { display: none; }
       /* Stage holds the map image + pin layer at a fixed aspect ratio so
          lat/lng → % math stays exact regardless of phone screen shape.
-         New map source aspect ratio: 1358 / 1954 ≈ 0.695 (portrait). */
+         New map source aspect ratio: 836 / 1822 ≈ 0.459 (portrait). */
       .map-stage {
         position: relative;
         width: 100%;
-        aspect-ratio: 0.695 / 1;
+        aspect-ratio: 0.459 / 1;
         min-height: 100%;
         background: transparent;
         transform-origin: 0 0;
@@ -1358,7 +1358,7 @@
 
       <div class="map-wrap" id="map-wrap">
         <div class="map-stage" id="map-stage">
-          <img class="map-img" src="./assets/world-map.png?v=2" alt="" draggable="false" />
+          <img class="map-img" src="./assets/world-map.png?v=3" alt="" draggable="false" />
           <!-- Traces + here-pin injected by JS, positioned in % of this stage -->
           <div id="map-traces"></div>
         </div>
@@ -2199,35 +2199,31 @@
 
       /* ============================================================
          MAP DATA
-         Coords are stored as % of the .map-wrap container. The world
-         map image (assets/world-map.png) is a stylised non-Mercator
-         layout — coords below were eyeballed against it.
+         Coords are stored as % of the .map-stage element.
+         world-map.png (836×1822) uses an interrupted projection:
+         Americas on top half, Europe/Africa/Asia on bottom half.
+         Standard Mercator won't fit — we use two 2-D affine
+         transforms, one per hemisphere, calibrated by pixel-
+         sampling known country positions on the actual image.
          ============================================================ */
-      // The world-map.png is a stylised Mercator-like map with whitespace
-      // padding around the land area. These constants define the actual
-      // plot rectangle (in % of the image / stage) and the Mercator
-      // latitude bounds that map to its top & bottom edges.
-      // Portrait map (1358×1954). Calibrated against the visual positions
-      // of the countries in the dropdown — optimised for Europe accuracy
-      // with reasonable placement for Americas and East Asia.
-      const MAP_CALIB = {
-        xMin:  -8,   xMax: 83,
-        yMin:  27.9, yMax: 81.7,
-        latTop: 69,
-        latBot: -47,
+
+      // Affine coefficients fitted via least-squares against 7 eastern and
+      // 5 western landmarks sampled directly from the map image pixels.
+      // x_pct = xC[0]*lat + xC[1]*lng + xC[2]
+      // y_pct = yC[0]*lat + yC[1]*lng + yC[2]
+      const _EAST = {            // lng > -30  (Europe, Africa, Asia, Oceania)
+        xC: [ 0.097842,  0.407081, 15.992217],
+        yC: [-0.273020,  0.004426, 72.917112],
       };
-      function _mercY(latDeg) {
-        // Returns Mercator y in [0, 1] where 0=top pole, 1=bottom pole.
-        const lat = Math.max(-85, Math.min(85, latDeg)) * Math.PI / 180;
-        return 0.5 - Math.asinh(Math.tan(lat)) / (2 * Math.PI);
-      }
-      const _Y_TOP = _mercY(MAP_CALIB.latTop);
-      const _Y_BOT = _mercY(MAP_CALIB.latBot);
+      const _WEST = {            // lng <= -30  (Americas)
+        xC: [ 0.223183, -0.006288, 24.456895],
+        yC: [-0.340553,  0.106643, 50.106597],
+      };
+
       function latLngToPct(lat, lng) {
-        const x = MAP_CALIB.xMin + ((lng + 180) / 360) * (MAP_CALIB.xMax - MAP_CALIB.xMin);
-        const yMerc = _mercY(lat);
-        const yNorm = (yMerc - _Y_TOP) / (_Y_BOT - _Y_TOP);
-        const y = MAP_CALIB.yMin + yNorm * (MAP_CALIB.yMax - MAP_CALIB.yMin);
+        const c = lng > -30 ? _EAST : _WEST;
+        const x = c.xC[0]*lat + c.xC[1]*lng + c.xC[2];
+        const y = c.yC[0]*lat + c.yC[1]*lng + c.yC[2];
         return { x, y };
       }
       const COUNTRIES_LL = {
