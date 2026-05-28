@@ -515,7 +515,7 @@
         z-index: 0;
         pointer-events: none;
         background-color: var(--cream);
-        background-image: url('./assets/world-map.png');
+        background-image: url('./assets/world-map.png?v=2');
         background-repeat: no-repeat;
         background-position: center bottom;
         background-size: 110% auto;
@@ -1358,7 +1358,7 @@
 
       <div class="map-wrap" id="map-wrap">
         <div class="map-stage" id="map-stage">
-          <img class="map-img" src="./assets/world-map.png" alt="" draggable="false" />
+          <img class="map-img" src="./assets/world-map.png?v=2" alt="" draggable="false" />
           <!-- Traces + here-pin injected by JS, positioned in % of this stage -->
           <div id="map-traces"></div>
         </div>
@@ -2211,10 +2211,10 @@
       // of the countries in the dropdown — optimised for Europe accuracy
       // with reasonable placement for Americas and East Asia.
       const MAP_CALIB = {
-        xMin: -8.5,  xMax: 88.5,
-        yMin:  5.0,  yMax: 91.5,
-        latTop:  74,
-        latBot: -58,
+        xMin:  -8,   xMax: 83,
+        yMin:  27.9, yMax: 81.7,
+        latTop: 69,
+        latBot: -47,
       };
       function _mercY(latDeg) {
         // Returns Mercator y in [0, 1] where 0=top pole, 1=bottom pole.
@@ -2725,6 +2725,17 @@
          ============================================================ */
       if (location.search.includes('debug')) {
         body.classList.add('is-debug');
+        // Always start completely fresh in debug mode — wipe all persisted state
+        localStorage.removeItem('zarra:flavours');
+        localStorage.removeItem('zarra:traces');
+        localStorage.removeItem('zarra:profile');
+        activeFlavour    = null;
+        activeFilter     = null;
+        unlockedFlavours = new Set();
+        submittedTraces  = {};
+        hasProfile       = false;
+        myCoord          = null;
+        body.dataset.submitted = '0';
         document.addEventListener('keydown', (e) => {
           const i = STATES.indexOf(state);
           if (e.key === 'ArrowRight' || e.key === ' ') {
