@@ -521,17 +521,8 @@
         background-size: cover;
       }
       /* Halftone-style bees at the top, mimicking the figma decoration */
-      .profile-bee {
-        position: absolute;
-        z-index: 0;
-        font-size: 3rem;
-        opacity: 0.55;
-        color: var(--orange);
-        filter: hue-rotate(-12deg) saturate(0.95) blur(0.1px);
-        pointer-events: none;
-      }
-      .profile-bee.b1 { top: 4%;  left: 6%;  transform: rotate(-14deg); font-size: 3.2rem; }
-      .profile-bee.b2 { top: 11%; right: 5%; transform: rotate(20deg) scaleX(-1); font-size: 3.6rem; }
+      /* Bee decorations hidden — background image already has them */
+      .profile-bee { display: none; }
       .profile-back {
         position: absolute;
         top: max(env(safe-area-inset-top, 0px), 1rem);
