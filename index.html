@@ -907,20 +907,33 @@
         white-space: nowrap;
       }
       .flavor-chip .pip {
-        width: 18px; height: 18px;
+        width: 20px; height: 20px;
         border-radius: 50%;
         display: grid;
         place-items: center;
         font-size: 0.75rem;
         line-height: 1;
-        background: var(--orange-soft);
+        background: transparent;
+        overflow: hidden;
       }
+      .flav-ico {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+        pointer-events: none;
+      }
+      /* SVG icons inside the round badges / bubble / trace pins */
+      .trace-bee-badge img { width: 80%; height: 80%; object-fit: contain; display: block; }
+      .community-badge img { width: 72%; height: 72%; object-fit: contain; display: block; }
+      .trace-bubble .bub-icon img { width: 82%; height: 82%; object-fit: contain; display: block; }
+      .trace-pin img { width: 88%; height: 88%; object-fit: contain; display: block; pointer-events: none; }
       .flavor-chip.locked {
         color: rgba(42,26,14,0.35);
         background: rgba(255,255,255,0.6);
         filter: grayscale(0.7) opacity(0.65);
       }
-      .flavor-chip.locked .pip { background: rgba(0,0,0,0.06); }
+      .flavor-chip.locked .pip { background: transparent; }
 
       .map-back {
         position: absolute;
@@ -978,7 +991,7 @@
         left: 50%;
         transform: translateX(-50%);
         width: 60px; height: 60px;
-        background: var(--orange);
+        background: #fff;
         color: #fff;
         border-radius: 50%;
         display: grid;
@@ -1278,7 +1291,7 @@
         <i></i><i></i>
       </div>
       <div class="scan-hint">
-        <span data-i18n="scanFind">Find the can</span>
+        <span data-i18n="scanFind">Find the bee</span>
         <em data-i18n="scanFrame">Frame it within</em>
       </div>
       <button class="dev-skip" id="dev-skip">Skip detect →</button>
@@ -1363,7 +1376,7 @@
 
         <!-- The single popup bubble (re-used for whichever pin is tapped) -->
         <div class="trace-bubble" id="trace-bubble" role="dialog" aria-modal="false">
-          <div class="bub-icon" id="bub-icon">🍒</div>
+          <div class="bub-icon" id="bub-icon"><img src="./assets/honey.svg" alt="" draggable="false"></div>
           <button class="bub-close" id="bub-close" aria-label="Close">✕</button>
           <p class="bub-quote" id="bub-quote"></p>
           <span class="bub-meta">
@@ -1376,7 +1389,7 @@
 
 
       <div class="trace-panel">
-        <div class="trace-bee-badge" aria-hidden="true">🐝</div>
+        <div class="trace-bee-badge" aria-hidden="true"><img src="./assets/bee.svg" alt="" draggable="false"></div>
         <h3 class="trace-title" data-i18n="traceTitle">LEAVE YOUR TRACE…</h3>
         <div class="trace-input-row">
           <input id="trace-input" type="text" data-i18n-placeholder="tracePlaceholder" placeholder="type here …" maxlength="120" />
@@ -1533,12 +1546,19 @@
          hasProfile             → first run vs. subsequent scans
          ============================================================ */
       const FLAVOURS = {
-        orange: { id: 'orange', emoji: '🍊', label: 'ORANGE' },
-        honey:  { id: 'honey',  emoji: '🍯', label: 'HONEY'  },
-        cherry: { id: 'cherry', emoji: '🍒', label: 'CHERRY' },
-        lemon:  { id: 'lemon',  emoji: '🍋', label: 'LEMON'  },
+        honey:  { id: 'honey',  icon: './assets/honey.svg',          label: 'HONEY'  },
+        orange: { id: 'orange', icon: './assets/orange.svg',         label: 'ORANGE' },
+        cherry: { id: 'cherry', icon: './assets/sour%20cherry.svg',  label: 'SOUR CHERRY' },
+        lemon:  { id: 'lemon',  icon: './assets/sweet%20cherry.svg', label: 'SWEET CHERRY' },
+        fig:    { id: 'fig',    icon: './assets/fig.svg',            label: 'FIG' },
       };
-      const FLAVOUR_ORDER = ['orange', 'honey', 'cherry', 'lemon'];
+      const FLAVOUR_ORDER = ['honey', 'orange', 'cherry', 'lemon', 'fig'];
+      // Returns an <img> HTML string for a flavour's icon (falls back to bee).
+      function flavourIconHTML(fid) {
+        const f = FLAVOURS[fid];
+        const src = f ? f.icon : './assets/bee.svg';
+        return `<img src="${src}" alt="" class="flav-ico" draggable="false">`;
+      }
 
       let activeFlavour = null;
       let unlockedFlavours = new Set();
@@ -1597,7 +1617,7 @@
           permBody: 'zarra.cervesa would like to use your <b>camera</b> to bring something to life and your <b>location</b> to place your trace on the map.<br/><br/><small>We also store a few cookies to remember your trace between visits.</small>',
           permDeny: 'Deny',
           permAllow: 'Allow',
-          scanFind: 'Find the ingredient',
+          scanFind: 'Find the bee',
           scanFrame: 'Frame it within',
           beeMsg: 'Tap the golden bee.',
           beeCta: 'Continue',
@@ -1637,7 +1657,7 @@
           permBody: 'zarra.cervesa quiere usar tu <b>cámara</b> para dar vida a algo y tu <b>ubicación</b> para colocar tu huella en el mapa.<br/><br/><small>También usamos algunas cookies para recordar tu huella entre visitas.</small>',
           permDeny: 'Rechazar',
           permAllow: 'Permitir',
-          scanFind: 'Encuentra el ingrediente',
+          scanFind: 'Encuentra la abeja',
           scanFrame: 'Encuádralo dentro',
           beeMsg: 'Toca la abeja dorada.',
           beeCta: 'Continuar',
@@ -2388,7 +2408,7 @@
           const isVisible = visibleSet.has(t.id) || (t.mine && hasSubmittedActive);
           const locked = !isVisible;
           pin.className = 'trace-pin' + (t.mine ? ' is-mine' : '') + (locked ? ' locked' : '');
-          pin.textContent = FLAVOURS[t.flavour]?.emoji || '✦';
+          pin.innerHTML = flavourIconHTML(t.flavour);
           pin.style.left = t.x + '%';
           pin.style.top  = t.y + '%';
           pin.dataset.locked = locked ? '1' : '0';
@@ -2402,7 +2422,7 @@
               // Post-submit: locked pin means a different flavour → "SCAN A NEW BEER"
               if (!hasSubmittedActive) {
                 showModal({
-                  icon: '🐝',
+                  icon: '<img src="./assets/bee.svg" alt="" draggable="false">',
                   title: I18N[lang].mNotSoFastTitle,
                   body:  I18N[lang].mNotSoFastBody,
                   primary: I18N[lang].mOkay,
@@ -2464,7 +2484,7 @@
 
           const pip  = document.createElement('span');
           pip.className = 'pip';
-          pip.textContent = f.emoji;   // always show emoji; CSS greys it when locked
+          pip.innerHTML = flavourIconHTML(fid);   // SVG icon; CSS greys it when locked
           const label = document.createElement('span');
           label.textContent = f.label;
           chip.appendChild(pip);
@@ -2563,7 +2583,7 @@
       }
 
       function openBubble(t, pinEl) {
-        bubIcon.textContent  = t.icon || FLAVOURS[t.flavour]?.emoji || '✦';
+        bubIcon.innerHTML    = flavourIconHTML(t.flavour);
         bubQuote.textContent = '”' + t.quote + '”';
         bubWho.textContent   = t.who;
         bubble.classList.add('is-open');
@@ -2664,7 +2684,7 @@
         const flavourLabel = FLAVOURS[activeFlavour]?.label || '';
         setTimeout(() => {
           showModal({
-            icon: FLAVOURS[activeFlavour]?.emoji || '🐝',
+            icon: flavourIconHTML(activeFlavour),
             title: I18N[lang].mThanksTitle,
             body:  I18N[lang].mThanksBody.replace('{flavour}', flavourLabel),
             primary: I18N[lang].mOkay,
